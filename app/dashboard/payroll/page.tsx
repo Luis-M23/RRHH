@@ -683,29 +683,33 @@ export default function PayrollPage() {
     doc.text('DETALLE DE EMPLEADOS', 15, yPosition)
     yPosition += 6
 
-    // Table setup
-    const headers = ['Empleado', 'Cédula', 'Salario Base', 'ISSS', 'AFP', 'RENTA', 'Salario Neto']
-    const columnWidths = [35, 20, 25, 18, 18, 18, 30]
-    const tableStartX = 15
+    // Table setup - optimized for letter page
+    const headers = ['Empleado', 'Cédula', 'Salario', 'ISSS', 'AFP', 'RENTA', 'Neto']
+    const columnWidths = [30, 18, 20, 16, 16, 16, 25]
+    const tableStartX = 12
     const tableStartY = yPosition
+    const totalTableWidth = columnWidths.reduce((a, b) => a + b, 0)
 
     // Draw table header
     doc.setFillColor(31, 56, 100)
     doc.setTextColor(255, 255, 255)
-    doc.setFontSize(8)
+    doc.setFontSize(7)
     doc.setFont('helvetica', 'bold')
 
     let currentX = tableStartX
     headers.forEach((header, i) => {
-      doc.rect(currentX, tableStartY, columnWidths[i], 7, 'F')
-      doc.text(header, currentX + 1, tableStartY + 5, { maxWidth: columnWidths[i] - 2, fontSize: 8 })
+      doc.rect(currentX, tableStartY, columnWidths[i], 6.5, 'F')
+      doc.text(header, currentX + 0.5, tableStartY + 4.2, {
+        maxWidth: columnWidths[i] - 1,
+        align: 'center',
+      })
       currentX += columnWidths[i]
     })
 
-    yPosition = tableStartY + 8
+    yPosition = tableStartY + 7
     doc.setTextColor(0, 0, 0)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
+    doc.setFontSize(7)
 
     // Draw table rows
     let rowCount = 0
@@ -714,17 +718,36 @@ export default function PayrollPage() {
       if (!employee) return
 
       // Check if we need a new page
-      if (yPosition > pageHeight - 20) {
-        addFooter(doc.internal.getNumberOfPages(), 1) // Will update later
+      if (yPosition > pageHeight - 18) {
+        addFooter(doc.internal.getNumberOfPages(), 1)
         doc.addPage()
         addHeader(doc.internal.getNumberOfPages())
-        yPosition = 45
+        
+        // Redraw table header on new page
+        doc.setFillColor(31, 56, 100)
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(7)
+        doc.setFont('helvetica', 'bold')
+        currentX = tableStartX
+        headers.forEach((header, i) => {
+          doc.rect(currentX, 45, columnWidths[i], 6.5, 'F')
+          doc.text(header, currentX + 0.5, 49.2, {
+            maxWidth: columnWidths[i] - 1,
+            align: 'center',
+          })
+          currentX += columnWidths[i]
+        })
+        
+        yPosition = 52
+        doc.setTextColor(0, 0, 0)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7)
       }
 
       // Alternate row background
       if (rowCount % 2 === 0) {
         doc.setFillColor(245, 245, 245)
-        doc.rect(tableStartX, yPosition - 3, pageWidth - 30, 5, 'F')
+        doc.rect(tableStartX, yPosition - 2.5, totalTableWidth, 5, 'F')
       }
 
       const values = [
@@ -741,9 +764,12 @@ export default function PayrollPage() {
       currentX = tableStartX
       values.forEach((value, i) => {
         const isNumeric = i > 1
-        doc.text(value, currentX + 1, yPosition, {
-          maxWidth: columnWidths[i] - 2,
-          align: isNumeric ? 'right' : 'left',
+        const align = isNumeric ? 'right' : 'left'
+        const xOffset = isNumeric ? columnWidths[i] - 0.5 : 0.5
+        
+        doc.text(value, currentX + xOffset, yPosition, {
+          maxWidth: columnWidths[i] - 1,
+          align: align,
         })
         currentX += columnWidths[i]
       })
