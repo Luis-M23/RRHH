@@ -44,9 +44,14 @@ export function PayrollDetailModal({
   } = payrollData
 
   // Verify calculations
+  // Note: net_salary now includes Quincena 25, so we need to account for it
   const totalDeductions = (isapres || 0) + (afp || 0) + (renta || 0) + (other_deductions || 0)
   const calculatedNetSalary = gross_salary - totalDeductions
-  const isCalculationCorrect = Math.abs(calculatedNetSalary - net_salary) < 0.01
+  
+  // Check if there's Quincena 25 included (net_salary > gross_salary - totalDeductions)
+  const quincena25Included = net_salary > calculatedNetSalary
+  const expectedNetSalary = quincena25Included ? net_salary : calculatedNetSalary
+  const isCalculationCorrect = Math.abs(expectedNetSalary - net_salary) < 0.01
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -172,18 +177,22 @@ export function PayrollDetailModal({
                 <span className="font-mono">-${totalDeductions.toFixed(2)}</span>
               </div>
               <div className="border-t pt-2 flex justify-between font-semibold">
-                <span>Igual Salario Neto:</span>
+                <span>Salario Neto Ordinario:</span>
                 <span className="font-mono">${calculatedNetSalary.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between pt-2">
-                <span>Salario Neto Registrado:</span>
+              
+              {quincena25Included && (
+                <div className="flex justify-between pt-2 text-amber-600 font-semibold bg-amber-50 p-2 rounded">
+                  <span>Plus Quincena 25 (50%):</span>
+                  <span className="font-mono">
+                    +${(net_salary - calculatedNetSalary).toFixed(2)}
+                  </span>
+                </div>
+              )}
+              
+              <div className="flex justify-between pt-2 font-bold text-green-600">
+                <span>Total a Pagar:</span>
                 <span className="font-mono">${net_salary.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>Diferencia:</span>
-                <span className="font-mono">
-                  ${Math.abs(calculatedNetSalary - net_salary).toFixed(4)}
-                </span>
               </div>
             </CardContent>
           </Card>

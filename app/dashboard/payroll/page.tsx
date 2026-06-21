@@ -456,6 +456,7 @@ export default function PayrollPage() {
         const result = calculatePayroll(employee.salary, currentParams, employeeAbsences, enableQuincena25)
 
         // Initialize base payload with standard fields
+        // Note: other_deductions should only contain absences, Quincena 25 is added to net_salary
         const payload: any = {
           employee_id: employeeId,
           payroll_period_month: month,
@@ -464,8 +465,8 @@ export default function PayrollPage() {
           isapres: result.isss,
           afp: result.afp,
           renta: result.renta,
-          other_deductions: (result.absenceDeduction || 0) + (result.quincena25 || 0),
-          net_salary: result.netSalary,
+          other_deductions: result.absenceDeduction || 0,
+          net_salary: result.totalIncome, // Total income includes Quincena 25 if applicable
           status: 'draft',
         }
 
