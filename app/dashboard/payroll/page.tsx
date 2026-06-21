@@ -546,72 +546,153 @@ export default function PayrollPage() {
   const exportToPDF = () => {
     const doc = new jsPDF()
     const now = new Date()
-
-    doc.setFontSize(16)
-    doc.text('Asociación Comunal Aguas del Tecomasuchi, C.A.', 105, 15, {
-      align: 'center',
-    })
-    doc.setFontSize(12)
-    doc.text(`Planilla de Salarios - ${month}/${year}`, 105, 25, {
-      align: 'center',
-    })
-    doc.text(
-      `Generado: ${now.toLocaleDateString('es-SV')}`,
-      105,
-      32,
-      { align: 'center' }
-    )
-
-    let yPosition = 45
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    const monthName = monthNames[month - 1]
 
     const filteredRecords = payrollRecords.filter(
       (r) => r.payroll_period_month === month && r.payroll_period_year === year
     )
 
     if (filteredRecords.length === 0) {
-      doc.text('No hay registros de planilla para este período', 15, yPosition)
+      doc.text('No hay registros de planilla para este período', 15, 50)
       doc.save(`planilla-${month}-${year}.pdf`)
       return
     }
 
-    doc.setFontSize(10)
-    doc.setTextColor(255, 255, 255)
-    doc.setFillColor(59, 130, 246) // Blue
+    // === HEADER SECTION ===
+    const pageWidth = doc.internal.pageSize.getWidth()
+    
+    // Colored header bar
+    doc.setFillColor(31, 56, 100) // Dark blue
+    doc.rect(0, 0, pageWidth, 40, 'F')
 
+    // Company name
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(18)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Asociación Comunal Aguas del Tecomasuchi, C.A.', 15, 15)
+
+    // Document title
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'normal')
+    doc.text('PLANILLA DE SALARIOS', 15, 27)
+
+    // Generation date and period on the right
+    doc.setFontSize(9)
+    doc.setTextColor(200, 200, 200)
+    doc.text(`Período: ${monthName} ${year}`, pageWidth - 50, 15)
+    doc.text(`Generado: ${now.toLocaleDateString('es-SV')}`, pageWidth - 50, 22)
+    doc.text(`Hora: ${now.toLocaleTimeString('es-SV')}`, pageWidth - 50, 29)
+
+    // === SUMMARY SECTION ===
+    let yPosition = 50
+    doc.setTextColor(0, 0, 0)
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('RESUMEN DEL PERÍODO', 15, yPosition)
+    
+    yPosition += 8
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+
+    // Calculate summary totals
+    const summary = filteredRecords.reduce(
+      (acc, record) => ({
+        totalEmployees: acc.totalEmployees + 1,
+        totalGross: acc.totalGross + record.gross_salary,
+        totalISS: acc.totalISS + record.isapres,
+        totalAFP: acc.totalAFP + record.afp,
+        totalRENTA: acc.totalRENTA + record.renta,
+        totalNet: acc.totalNet + record.net_salary,
+      }),
+      {
+        totalEmployees: 0,
+        totalGross: 0,
+        totalISS: 0,
+        totalAFP: 0,
+        totalRENTA: 0,
+        totalNet: 0,
+      }
+    )
+
+    const summaryData = [
+      { label: 'Total de Empleados:', value: summary.totalEmployees },
+      { label: 'Salario Base Total:', value: `$${summary.totalGross.toFixed(2)}` },
+      { label: 'Total ISSS:', value: `$${summary.totalISS.toFixed(2)}` },
+      { label: 'Total AFP:', value: `$${summary.totalAFP.toFixed(2)}` },
+      { label: 'Total RENTA:', value: `$${summary.totalRENTA.toFixed(2)}` },
+    ]
+
+    const colWidth1 = 50
+    const colWidth2 = 40
+    
+    summaryData.forEach((item) => {
+      doc.text(item.label, 15, yPosition)
+      doc.setFont('helvetica', 'bold')
+      doc.text(String(item.value), 15 + colWidth1, yPosition, { align: 'right' })
+      doc.setFont('helvetica', 'normal')
+      yPosition += 6
+    })
+
+    // Total NET with highlight
+    doc.setFillColor(230, 240, 250)
+    doc.rect(15, yPosition - 3, colWidth1 + colWidth2 - 5, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('TOTAL A PAGAR NETO:', 15, yPosition + 3)
+    doc.setTextColor(31, 56, 100)
+    doc.text(`$${summary.totalNet.toFixed(2)}`, 15 + colWidth1, yPosition + 3, { align: 'right' })
+    
+    yPosition += 15
+
+    // === DETAIL TABLE ===
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('DETALLE DE EMPLEADOS', 15, yPosition)
+
+    yPosition += 8
+
+    // Table headers
+    doc.setFillColor(31, 56, 100)
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(8)
+    
     const headers = [
       'Empleado',
       'Cédula',
-      'Salario Base',
-      'ISAPRES',
+      'Salario',
+      'ISSS',
       'AFP',
       'RENTA',
       'Neto',
     ]
-    const columnWidths = [30, 25, 25, 20, 20, 20, 25]
+    
+    const columnWidths = [35, 22, 22, 16, 16, 16, 25]
     let xPosition = 15
 
+    // Draw header background and text
     headers.forEach((header, i) => {
-      doc.rect(
-        xPosition,
-        yPosition - 5,
-        columnWidths[i],
-        7,
-        'F'
-      )
-      doc.text(header, xPosition + 2, yPosition, { maxWidth: columnWidths[i] })
-      xPosition += columnWidths[i]
+      const headerWidth = columnWidths[i]
+      doc.rect(xPosition, yPosition - 5, headerWidth, 7, 'F')
+      doc.text(header, xPosition + 1, yPosition, { maxWidth: headerWidth - 2, align: 'center' })
+      xPosition += headerWidth
     })
 
-    yPosition += 10
+    yPosition += 8
     doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'normal')
 
+    // Table rows
+    let rowCount = 0
     filteredRecords.forEach((record) => {
       const employee = employees.find((e) => e.id === record.employee_id)
       if (!employee) return
 
       const values = [
         `${employee.first_name} ${employee.last_name}`,
-        employee.cedula,
+        employee.cedula || 'N/A',
         `$${record.gross_salary.toFixed(2)}`,
         `$${record.isapres.toFixed(2)}`,
         `$${record.afp.toFixed(2)}`,
@@ -619,20 +700,69 @@ export default function PayrollPage() {
         `$${record.net_salary.toFixed(2)}`,
       ]
 
+      // Alternate row background for better readability
+      if (rowCount % 2 === 0) {
+        doc.setFillColor(245, 245, 245)
+        xPosition = 15
+        columnWidths.forEach((width) => {
+          doc.rect(xPosition, yPosition - 4, width, 6, 'F')
+          xPosition += width
+        })
+      }
+
       xPosition = 15
       values.forEach((value, i) => {
-        doc.text(value, xPosition + 2, yPosition, { maxWidth: columnWidths[i] })
+        const align = i === 0 || i === 1 ? 'left' : 'right'
+        doc.text(value, xPosition + 1, yPosition, { maxWidth: columnWidths[i] - 2, align })
         xPosition += columnWidths[i]
       })
 
-      yPosition += 7
-      if (yPosition > 270) {
+      yPosition += 6
+      rowCount++
+
+      // Add new page if needed
+      if (yPosition > 260) {
         doc.addPage()
+        // Repeat headers on new page
         yPosition = 20
+        doc.setFillColor(31, 56, 100)
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(8)
+        
+        xPosition = 15
+        headers.forEach((header, i) => {
+          const headerWidth = columnWidths[i]
+          doc.rect(xPosition, yPosition - 5, headerWidth, 7, 'F')
+          doc.text(header, xPosition + 1, yPosition, { maxWidth: headerWidth - 2, align: 'center' })
+          xPosition += headerWidth
+        })
+        
+        yPosition += 8
+        doc.setTextColor(0, 0, 0)
+        doc.setFont('helvetica', 'normal')
       }
     })
 
-    doc.save(`planilla-${month}-${year}.pdf`)
+    // === FOOTER ===
+    const lastPageSize = doc.internal.getNumberOfPages()
+    for (let i = 1; i <= lastPageSize; i++) {
+      doc.setPage(i)
+      doc.setFontSize(8)
+      doc.setTextColor(150, 150, 150)
+      
+      // Footer line
+      doc.setDrawColor(200, 200, 200)
+      doc.line(15, doc.internal.pageSize.getHeight() - 15, pageWidth - 15, doc.internal.pageSize.getHeight() - 15)
+      
+      // Page number and info
+      doc.text(
+        `Página ${i} de ${lastPageSize} | Sistema de Gestión de Planillas | ${now.toLocaleDateString('es-SV')}`,
+        15,
+        doc.internal.pageSize.getHeight() - 10
+      )
+    }
+
+    doc.save(`planilla-${monthName}-${year}.pdf`)
   }
 
   const openDetailModal = (record: PayrollRecord) => {
