@@ -544,11 +544,13 @@ export default function PayrollPage() {
   }
 
   const exportToPDF = () => {
-    const doc = new jsPDF()
+    const doc = new jsPDF('p', 'mm', 'letter')
     const now = new Date()
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
                         'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
     const monthName = monthNames[month - 1]
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
 
     const filteredRecords = payrollRecords.filter(
       (r) => r.payroll_period_month === month && r.payroll_period_year === year
@@ -560,41 +562,54 @@ export default function PayrollPage() {
       return
     }
 
-    // === HEADER SECTION ===
-    const pageWidth = doc.internal.pageSize.getWidth()
-    
-    // Colored header bar
-    doc.setFillColor(31, 56, 100) // Dark blue
-    doc.rect(0, 0, pageWidth, 40, 'F')
+    const addHeader = (pageNum: number) => {
+      // Colored header bar
+      doc.setFillColor(31, 56, 100)
+      doc.rect(0, 0, pageWidth, 35, 'F')
 
-    // Company name
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(18)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Asociación Comunal Aguas del Tecomasuchi, C.A.', 15, 15)
+      // Company name
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Asociación Comunal Aguas del Tecomasuchi, C.A.', 15, 12)
 
-    // Document title
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'normal')
-    doc.text('PLANILLA DE SALARIOS', 15, 27)
+      // Document title and period
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`PLANILLA DE SALARIOS - ${monthName.toUpperCase()} ${year}`, 15, 23)
 
-    // Generation date and period on the right
-    doc.setFontSize(9)
-    doc.setTextColor(200, 200, 200)
-    doc.text(`Período: ${monthName} ${year}`, pageWidth - 50, 15)
-    doc.text(`Generado: ${now.toLocaleDateString('es-SV')}`, pageWidth - 50, 22)
-    doc.text(`Hora: ${now.toLocaleTimeString('es-SV')}`, pageWidth - 50, 29)
+      // Right side info
+      doc.setFontSize(8)
+      doc.setTextColor(220, 220, 220)
+      const rightCol = pageWidth - 40
+      doc.text(`Período: ${monthName} ${year}`, rightCol, 12)
+      doc.text(`Generado: ${now.toLocaleDateString('es-SV')}`, rightCol, 17)
+      doc.text(`Hora: ${now.toLocaleTimeString('es-SV')}`, rightCol, 22)
+    }
+
+    const addFooter = (pageNum: number, totalPages: number) => {
+      doc.setFontSize(8)
+      doc.setTextColor(150, 150, 150)
+      doc.setDrawColor(200, 200, 200)
+      doc.line(15, pageHeight - 12, pageWidth - 15, pageHeight - 12)
+      doc.text(
+        `Página ${pageNum} de ${totalPages} | Sistema de Gestión de Planillas | ${now.toLocaleDateString('es-SV')}`,
+        15,
+        pageHeight - 8
+      )
+    }
+
+    // Add header to first page
+    addHeader(1)
+
+    let yPosition = 42
+    doc.setTextColor(0, 0, 0)
 
     // === SUMMARY SECTION ===
-    let yPosition = 50
-    doc.setTextColor(0, 0, 0)
     doc.setFontSize(10)
     doc.setFont('helvetica', 'bold')
     doc.text('RESUMEN DEL PERÍODO', 15, yPosition)
-    
-    yPosition += 8
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
+    yPosition += 7
 
     // Calculate summary totals
     const summary = filteredRecords.reduce(
@@ -616,79 +631,101 @@ export default function PayrollPage() {
       }
     )
 
-    const summaryData = [
-      { label: 'Total de Empleados:', value: summary.totalEmployees },
-      { label: 'Salario Base Total:', value: `$${summary.totalGross.toFixed(2)}` },
-      { label: 'Total ISSS:', value: `$${summary.totalISS.toFixed(2)}` },
-      { label: 'Total AFP:', value: `$${summary.totalAFP.toFixed(2)}` },
-      { label: 'Total RENTA:', value: `$${summary.totalRENTA.toFixed(2)}` },
-    ]
-
-    const colWidth1 = 50
-    const colWidth2 = 40
+    // Summary grid (2 columns)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    const col1 = 15
+    const col2 = 110
     
-    summaryData.forEach((item) => {
-      doc.text(item.label, 15, yPosition)
-      doc.setFont('helvetica', 'bold')
-      doc.text(String(item.value), 15 + colWidth1, yPosition, { align: 'right' })
-      doc.setFont('helvetica', 'normal')
-      yPosition += 6
-    })
+    doc.text(`Total de Empleados:`, col1, yPosition)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`${summary.totalEmployees}`, col2, yPosition)
+    yPosition += 5
 
-    // Total NET with highlight
-    doc.setFillColor(230, 240, 250)
-    doc.rect(15, yPosition - 3, colWidth1 + colWidth2 - 5, 8, 'F')
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Salario Base Total:`, col1, yPosition)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`$${summary.totalGross.toFixed(2)}`, col2, yPosition)
+    yPosition += 5
+
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Total ISSS:`, col1, yPosition)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`$${summary.totalISS.toFixed(2)}`, col2, yPosition)
+    yPosition += 5
+
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Total AFP:`, col1, yPosition)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`$${summary.totalAFP.toFixed(2)}`, col2, yPosition)
+    yPosition += 5
+
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Total RENTA:`, col1, yPosition)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`$${summary.totalRENTA.toFixed(2)}`, col2, yPosition)
+    yPosition += 7
+
+    // Total NET highlight
+    doc.setFillColor(200, 215, 240)
+    doc.rect(15, yPosition - 4, pageWidth - 30, 8, 'F')
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
-    doc.text('TOTAL A PAGAR NETO:', 15, yPosition + 3)
     doc.setTextColor(31, 56, 100)
-    doc.text(`$${summary.totalNet.toFixed(2)}`, 15 + colWidth1, yPosition + 3, { align: 'right' })
-    
-    yPosition += 15
+    doc.text('TOTAL A PAGAR NETO:', col1, yPosition + 2)
+    doc.text(`$${summary.totalNet.toFixed(2)}`, col2, yPosition + 2)
+    yPosition += 12
 
     // === DETAIL TABLE ===
     doc.setTextColor(0, 0, 0)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.text('DETALLE DE EMPLEADOS', 15, yPosition)
+    yPosition += 6
 
-    yPosition += 8
+    // Table setup
+    const headers = ['Empleado', 'Cédula', 'Salario Base', 'ISSS', 'AFP', 'RENTA', 'Salario Neto']
+    const columnWidths = [35, 20, 25, 18, 18, 18, 30]
+    const tableStartX = 15
+    const tableStartY = yPosition
 
-    // Table headers
+    // Draw table header
     doc.setFillColor(31, 56, 100)
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(8)
-    
-    const headers = [
-      'Empleado',
-      'Cédula',
-      'Salario',
-      'ISSS',
-      'AFP',
-      'RENTA',
-      'Neto',
-    ]
-    
-    const columnWidths = [35, 22, 22, 16, 16, 16, 25]
-    let xPosition = 15
+    doc.setFont('helvetica', 'bold')
 
-    // Draw header background and text
+    let currentX = tableStartX
     headers.forEach((header, i) => {
-      const headerWidth = columnWidths[i]
-      doc.rect(xPosition, yPosition - 5, headerWidth, 7, 'F')
-      doc.text(header, xPosition + 1, yPosition, { maxWidth: headerWidth - 2, align: 'center' })
-      xPosition += headerWidth
+      doc.rect(currentX, tableStartY, columnWidths[i], 7, 'F')
+      doc.text(header, currentX + 1, tableStartY + 5, { maxWidth: columnWidths[i] - 2, fontSize: 8 })
+      currentX += columnWidths[i]
     })
 
-    yPosition += 8
+    yPosition = tableStartY + 8
     doc.setTextColor(0, 0, 0)
     doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
 
-    // Table rows
+    // Draw table rows
     let rowCount = 0
     filteredRecords.forEach((record) => {
       const employee = employees.find((e) => e.id === record.employee_id)
       if (!employee) return
+
+      // Check if we need a new page
+      if (yPosition > pageHeight - 20) {
+        addFooter(doc.internal.getNumberOfPages(), 1) // Will update later
+        doc.addPage()
+        addHeader(doc.internal.getNumberOfPages())
+        yPosition = 45
+      }
+
+      // Alternate row background
+      if (rowCount % 2 === 0) {
+        doc.setFillColor(245, 245, 245)
+        doc.rect(tableStartX, yPosition - 3, pageWidth - 30, 5, 'F')
+      }
 
       const values = [
         `${employee.first_name} ${employee.last_name}`,
@@ -700,113 +737,156 @@ export default function PayrollPage() {
         `$${record.net_salary.toFixed(2)}`,
       ]
 
-      // Alternate row background for better readability
-      if (rowCount % 2 === 0) {
-        doc.setFillColor(245, 245, 245)
-        xPosition = 15
-        columnWidths.forEach((width) => {
-          doc.rect(xPosition, yPosition - 4, width, 6, 'F')
-          xPosition += width
-        })
-      }
-
-      xPosition = 15
+      doc.setTextColor(0, 0, 0)
+      currentX = tableStartX
       values.forEach((value, i) => {
-        const align = i === 0 || i === 1 ? 'left' : 'right'
-        doc.text(value, xPosition + 1, yPosition, { maxWidth: columnWidths[i] - 2, align })
-        xPosition += columnWidths[i]
+        const isNumeric = i > 1
+        doc.text(value, currentX + 1, yPosition, {
+          maxWidth: columnWidths[i] - 2,
+          align: isNumeric ? 'right' : 'left',
+        })
+        currentX += columnWidths[i]
       })
 
-      yPosition += 6
+      yPosition += 5
       rowCount++
-
-      // Add new page if needed
-      if (yPosition > 260) {
-        doc.addPage()
-        // Repeat headers on new page
-        yPosition = 20
-        doc.setFillColor(31, 56, 100)
-        doc.setTextColor(255, 255, 255)
-        doc.setFontSize(8)
-        
-        xPosition = 15
-        headers.forEach((header, i) => {
-          const headerWidth = columnWidths[i]
-          doc.rect(xPosition, yPosition - 5, headerWidth, 7, 'F')
-          doc.text(header, xPosition + 1, yPosition, { maxWidth: headerWidth - 2, align: 'center' })
-          xPosition += headerWidth
-        })
-        
-        yPosition += 8
-        doc.setTextColor(0, 0, 0)
-        doc.setFont('helvetica', 'normal')
-      }
     })
 
-    // === FOOTER ===
-    const lastPageSize = doc.internal.getNumberOfPages()
-    for (let i = 1; i <= lastPageSize; i++) {
+    // Add footers to all pages
+    const totalPages = doc.internal.getNumberOfPages()
+    for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i)
-      doc.setFontSize(8)
-      doc.setTextColor(150, 150, 150)
-      
-      // Footer line
-      doc.setDrawColor(200, 200, 200)
-      doc.line(15, doc.internal.pageSize.getHeight() - 15, pageWidth - 15, doc.internal.pageSize.getHeight() - 15)
-      
-      // Page number and info
-      doc.text(
-        `Página ${i} de ${lastPageSize} | Sistema de Gestión de Planillas | ${now.toLocaleDateString('es-SV')}`,
-        15,
-        doc.internal.pageSize.getHeight() - 10
-      )
+      addFooter(i, totalPages)
     }
 
     doc.save(`planilla-${monthName}-${year}.pdf`)
   }
 
-  const openDetailModal = (record: PayrollRecord) => {
-    setSelectedPayroll(record)
-    setDetailModalOpen(true)
-  }
-
   const exportToExcel = () => {
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    const monthName = monthNames[month - 1]
+
     const filteredRecords = payrollRecords.filter(
       (r) => r.payroll_period_month === month && r.payroll_period_year === year
     )
 
-    const data = filteredRecords.map((record) => {
+    if (filteredRecords.length === 0) {
+      toast({
+        title: 'Sin datos',
+        description: 'No hay registros de planilla para exportar',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Calculate summary totals
+    const summary = filteredRecords.reduce(
+      (acc, record) => ({
+        totalEmployees: acc.totalEmployees + 1,
+        totalGross: acc.totalGross + record.gross_salary,
+        totalISS: acc.totalISS + record.isapres,
+        totalAFP: acc.totalAFP + record.afp,
+        totalRENTA: acc.totalRENTA + record.renta,
+        totalNet: acc.totalNet + record.net_salary,
+      }),
+      {
+        totalEmployees: 0,
+        totalGross: 0,
+        totalISS: 0,
+        totalAFP: 0,
+        totalRENTA: 0,
+        totalNet: 0,
+      }
+    )
+
+    // Prepare data for Excel
+    const data: any[] = []
+
+    // Add header info
+    data.push(['PLANILLA DE SALARIOS'])
+    data.push(['Asociación Comunal Aguas del Tecomasuchi, C.A.'])
+    data.push([`Período: ${monthName} ${year}`])
+    data.push([`Generado: ${new Date().toLocaleDateString('es-SV')}`])
+    data.push([])
+
+    // Add summary
+    data.push(['RESUMEN DEL PERÍODO'])
+    data.push(['Total de Empleados:', summary.totalEmployees])
+    data.push(['Salario Base Total:', summary.totalGross])
+    data.push(['Total ISSS:', summary.totalISS])
+    data.push(['Total AFP:', summary.totalAFP])
+    data.push(['Total RENTA:', summary.totalRENTA])
+    data.push(['TOTAL A PAGAR:', summary.totalNet])
+    data.push([])
+
+    // Add employee details
+    data.push(['DETALLE DE EMPLEADOS'])
+    data.push([
+      'Empleado',
+      'Cédula',
+      'Salario Base',
+      'ISSS',
+      'AFP',
+      'RENTA',
+      'Otros Descuentos',
+      'Salario Neto',
+      'Estado',
+    ])
+
+    filteredRecords.forEach((record) => {
       const employee = employees.find((e) => e.id === record.employee_id)
-      return {
-        Empleado: `${employee?.first_name} ${employee?.last_name}`,
-        Cédula: employee?.cedula,
-        'Salario Base': record.gross_salary,
-        ISAPRES: record.isapres,
-        AFP: record.afp,
-        RENTA: record.renta,
-        'Otros Descuentos': record.other_deductions,
-        'Salario Neto': record.net_salary,
-        Estado: record.status,
+      if (!employee) return
+
+      data.push([
+        `${employee.first_name} ${employee.last_name}`,
+        employee.cedula || 'N/A',
+        record.gross_salary,
+        record.isapres,
+        record.afp,
+        record.renta,
+        record.other_deductions,
+        record.net_salary,
+        record.status,
+      ])
+    })
+
+    // Create workbook
+    const ws = XLSX.utils.aoa_to_sheet(data)
+    
+    // Set column widths
+    const colWidths = [25, 18, 18, 15, 15, 15, 18, 18, 15]
+    ws['!cols'] = colWidths.map((width) => ({ wch: width }))
+
+    // Style header rows
+    const headerRows = [0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 13]
+    headerRows.forEach((rowIdx) => {
+      for (let colIdx = 0; colIdx < 9; colIdx++) {
+        const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx })
+        if (ws[cellRef]) {
+          ws[cellRef].s = {
+            font: { bold: true },
+            fill: { fgColor: { rgb: '1F3864' }, patternType: 'solid' },
+            font: { bold: true, color: { rgb: 'FFFFFF' } },
+            alignment: { horizontal: 'center', vertical: 'center' },
+          }
+        }
       }
     })
 
-    const ws = XLSX.utils.json_to_sheet(data)
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, `Planilla ${month}/${year}`)
+    XLSX.utils.book_append_sheet(wb, ws, 'Planilla')
+    XLSX.writeFile(wb, `planilla-${monthName}-${year}.xlsx`)
 
-    // Style headers
-    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-      const address = XLSX.utils.encode_col(C) + '1'
-      if (!ws[address]) continue
-      ws[address].s = {
-        font: { bold: true },
-        fill: { fgColor: { rgb: 'FF3B82F6' } },
-        alignment: { horizontal: 'center' },
-      }
-    }
+    toast({
+      title: 'Éxito',
+      description: 'Planilla exportada a Excel correctamente',
+    })
+  }
 
-    XLSX.writeFile(wb, `planilla-${month}-${year}.xlsx`)
+  const openDetailModal = (record: PayrollRecord) => {
+    setSelectedPayroll(record)
+    setDetailModalOpen(true)
   }
 
   return (
