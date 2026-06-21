@@ -693,14 +693,13 @@ export default function PayrollPage() {
     // Draw table header
     doc.setFillColor(31, 56, 100)
     doc.setTextColor(255, 255, 255)
-    doc.setFontSize(7)
+    doc.setFontSize(7.5)
     doc.setFont('helvetica', 'bold')
 
     let currentX = tableStartX
     headers.forEach((header, i) => {
-      doc.rect(currentX, tableStartY, columnWidths[i], 6.5, 'F')
-      doc.text(header, currentX + 0.5, tableStartY + 4.2, {
-        maxWidth: columnWidths[i] - 1,
+      doc.rect(currentX, tableStartY, columnWidths[i], 7, 'F')
+      doc.text(header, currentX + columnWidths[i] / 2, tableStartY + 4.5, {
         align: 'center',
       })
       currentX += columnWidths[i]
@@ -881,7 +880,7 @@ export default function PayrollPage() {
     const ws = XLSX.utils.aoa_to_sheet(data)
     
     // Set column widths
-    const colWidths = [25, 18, 18, 15, 15, 15, 18, 18, 15]
+    const colWidths = [25, 18, 20, 15, 15, 15, 18, 18, 15]
     ws['!cols'] = colWidths.map((width) => ({ wch: width }))
 
     // Style header rows
