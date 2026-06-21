@@ -65,7 +65,6 @@ export default function EmployerCostsPage() {
       setIsLoading(true)
       const queryMonth = fetchMonth !== undefined ? fetchMonth : month
       const queryYear = fetchYear !== undefined ? fetchYear : year
-      console.log('[v0] Fetching employer costs for', queryMonth, '/', queryYear)
 
       const [{ data: costs, error: costsError }, { data: empData }] = await Promise.all([
         supabase
@@ -78,11 +77,9 @@ export default function EmployerCostsPage() {
       ])
 
       if (costsError) {
-        console.error('[v0] Error fetching costs:', costsError)
         throw costsError
       }
 
-      console.log('[v0] Fetched costs:', costs)
       if (costs) setEmployerCosts(costs)
       if (empData) setEmployees(empData)
     } catch (error) {
