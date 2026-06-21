@@ -12,19 +12,18 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  BarChart3,
-  Users,
-  Building2,
-  Briefcase,
-  FileText,
-  LogOut,
-  Menu,
-  X,
-  Home,
-  Sliders,
-  Calendar,
-  DollarSign,
-} from 'lucide-react'
+    BarChart3,
+    Users,
+    Building2,
+    Briefcase,
+    FileText,
+    LogOut,
+    Menu,
+    X,
+    Home,
+    Sliders,
+    Calendar,
+  } from 'lucide-react'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -71,11 +70,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       label: 'Planillas',
       href: '/dashboard/payroll',
       icon: FileText,
-    },
-    {
-      label: 'Costos Patronales',
-      href: '/dashboard/employer-costs',
-      icon: DollarSign,
     },
     {
       label: 'Parámetros de Descuentos',

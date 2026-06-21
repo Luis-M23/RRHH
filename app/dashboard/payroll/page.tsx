@@ -96,6 +96,7 @@ export default function PayrollPage() {
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([])
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollRecord | null>(null)
+  const [selectedEmployerCosts, setSelectedEmployerCosts] = useState<any>(null)
   const [isApproving, setIsApproving] = useState(false)
   const [enableQuincena25, setEnableQuincena25] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -955,8 +956,17 @@ export default function PayrollPage() {
     })
   }
 
-  const openDetailModal = (record: PayrollRecord) => {
+  const openDetailModal = async (record: PayrollRecord) => {
     setSelectedPayroll(record)
+    
+    // Fetch employer costs for this payroll
+    const { data: costs } = await supabase
+      .from('employer_costs')
+      .select('isss_employer, afp_employer, employer_total_cost')
+      .eq('payroll_id', record.id)
+      .single()
+    
+    setSelectedEmployerCosts(costs || null)
     setDetailModalOpen(true)
   }
 
@@ -1276,6 +1286,7 @@ export default function PayrollPage() {
           payrollData={selectedPayroll}
           onApprove={() => handleApprovePayroll(selectedPayroll.id)}
           isApproving={isApproving}
+          employerCosts={selectedEmployerCosts}
         />
       )}
     </div>

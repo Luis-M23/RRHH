@@ -20,6 +20,11 @@ interface PayrollDetailModalProps {
   payrollData: any
   onApprove: () => void
   isApproving: boolean
+  employerCosts?: {
+    isss_employer: number
+    afp_employer: number
+    employer_total_cost: number
+  }
 }
 
 export function PayrollDetailModal({
@@ -30,6 +35,7 @@ export function PayrollDetailModal({
   payrollData,
   onApprove,
   isApproving,
+  employerCosts,
 }: PayrollDetailModalProps) {
   if (!payrollData) return null
 
@@ -196,6 +202,51 @@ export function PayrollDetailModal({
               </div>
             </CardContent>
           </Card>
+
+          {/* Employer Costs Section (Internal Only - Not for PDF) */}
+          {employerCosts && (
+            <Card className="border-amber-200 bg-amber-50">
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  Costos Patronales (Información Interna)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-xs text-amber-700 bg-amber-100 p-2 rounded mb-4">
+                  ℹ️ Esta sección es solo para registro interno y no aparece en el PDF de la planilla del empleado
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {/* ISSS Employer */}
+                  <div className="p-3 border border-amber-200 rounded-lg bg-white">
+                    <p className="text-xs text-gray-600 mb-1">ISSS Empleador (7.5%)</p>
+                    <p className="text-lg font-bold text-amber-700">
+                      ${employerCosts.isss_employer.toFixed(2)}
+                    </p>
+                  </div>
+
+                  {/* AFP Employer */}
+                  <div className="p-3 border border-amber-200 rounded-lg bg-white">
+                    <p className="text-xs text-gray-600 mb-1">AFP Empleador (8.75%)</p>
+                    <p className="text-lg font-bold text-amber-700">
+                      ${employerCosts.afp_employer.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Total Employer Cost */}
+                <div className="p-3 border-2 border-amber-400 rounded-lg bg-white">
+                  <p className="text-sm text-gray-600 mb-1">Costo Total Empleador</p>
+                  <p className="text-2xl font-bold text-amber-700">
+                    ${employerCosts.employer_total_cost.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    (Salario Base + Contribuciones del Empleador)
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Status and Actions */}
           <div className="flex gap-2 justify-end">
