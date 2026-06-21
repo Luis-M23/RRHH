@@ -960,11 +960,15 @@ export default function PayrollPage() {
     setSelectedPayroll(record)
     
     // Fetch employer costs for this payroll
-    const { data: costs } = await supabase
+    const { data: costs, error } = await supabase
       .from('employer_costs')
       .select('isss_employer, afp_employer, employer_total_cost')
       .eq('payroll_id', record.id)
-      .single()
+      .maybeSingle()
+    
+    if (error) {
+      console.error('[v0] Error fetching employer costs:', error)
+    }
     
     setSelectedEmployerCosts(costs || null)
     setDetailModalOpen(true)
