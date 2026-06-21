@@ -1036,13 +1036,31 @@ export default function PayrollPage() {
               </div>
 
               <div>
-                <Label>Selecciona Empleados *</Label>
-                <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-300 rounded-md p-3">
-                  {employees.length === 0 && <p className="text-gray-500 text-sm">No hay empleados disponibles</p>}
+                <div className="flex justify-between items-center mb-3">
+                  <Label>Selecciona Empleados * ({selectedEmployees.length})</Label>
+                  <div className="text-xs space-x-2">
+                    <button
+                      onClick={() => setSelectedEmployees(employees.map(e => e.id))}
+                      className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition"
+                    >
+                      Seleccionar Todo
+                    </button>
+                    <button
+                      onClick={() => setSelectedEmployees([])}
+                      className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
+                  {employees.length === 0 && (
+                    <p className="text-gray-500 text-sm text-center py-4">No hay empleados disponibles</p>
+                  )}
                   {employees.map((emp) => (
                     <label
                       key={emp.id}
-                      className="flex items-center gap-2 cursor-pointer"
+                      className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-white transition"
                     >
                       <input
                         type="checkbox"
@@ -1059,10 +1077,16 @@ export default function PayrollPage() {
                             )
                           }
                         }}
+                        className="w-4 h-4 rounded"
                       />
-                      <span>
-                        {emp.first_name} {emp.last_name} - ${emp.salary.toFixed(2)}
-                      </span>
+                      <div className="flex-1">
+                        <span className="font-medium text-gray-800">
+                          {emp.first_name} {emp.last_name}
+                        </span>
+                        <span className="text-xs text-gray-500 ml-2">
+                          ${emp.salary.toFixed(2)}
+                        </span>
+                      </div>
                     </label>
                   ))}
                 </div>
@@ -1106,32 +1130,39 @@ export default function PayrollPage() {
 
       {/* Export Section */}
       {payrollRecords.length > 0 && (
-        <Card className="border-0 shadow-md bg-gradient-to-r from-blue-50 to-emerald-50">
-          <CardHeader>
-            <CardTitle className="text-base">Exportar Planilla</CardTitle>
-            <CardDescription>
-              Mes: {month} | Año: {year}
-            </CardDescription>
+        <Card className="border-0 shadow-md">
+          <CardHeader className="bg-gradient-to-r from-blue-600 to-emerald-600 text-white rounded-t-lg">
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="text-white">Exportar Planilla</CardTitle>
+                <CardDescription className="text-blue-100 mt-1">
+                  {payrollRecords.length} registro{payrollRecords.length !== 1 ? 's' : ''} disponible{payrollRecords.length !== 1 ? 's' : ''} 
+                  {' · '} 
+                  Mes {new Date(year, month - 1).toLocaleString('es-SV', { month: 'long' })} {year}
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="flex gap-3 flex-wrap">
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-2 gap-3">
               <Button
-                variant="outline"
                 onClick={exportToPDF}
-                className="flex items-center gap-2"
+                className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 justify-center"
               >
                 <Download size={18} />
-                Exportar a PDF
+                PDF
               </Button>
               <Button
-                variant="outline"
                 onClick={exportToExcel}
-                className="flex items-center gap-2"
+                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 justify-center"
               >
                 <Download size={18} />
-                Exportar a Excel
+                Excel
               </Button>
             </div>
+            <p className="text-xs text-gray-500 mt-3 text-center">
+              Los costos patronales se incluyen en el resumen pero no en los detalles de empleado
+            </p>
           </CardContent>
         </Card>
       )}
