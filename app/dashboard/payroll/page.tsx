@@ -516,16 +516,11 @@ export default function PayrollPage() {
         }
       }
 
-      console.log('[v0] Payroll generation successful, closing dialog')
+      console.log('[v0] Payroll generation successful')
       
-      // Refresh data first
-      await fetchAllData()
-      
-      // Clear form
-      setSelectedEmployees([])
-      
-      // Close dialog
+      // Close dialog and clear form IMMEDIATELY
       setIsDialogOpen(false)
+      setSelectedEmployees([])
       setIsGenerating(false)
       
       // Show success message
@@ -533,6 +528,9 @@ export default function PayrollPage() {
         title: 'Éxito',
         description: 'Planilla y costos patronales generados exitosamente',
       })
+      
+      // Refresh data in background (non-blocking)
+      fetchAllData().catch(err => console.error('[v0] Background refresh failed:', err))
     } catch (error) {
       setIsGenerating(false)
       console.error('[v0] Error generating payroll:', error)
