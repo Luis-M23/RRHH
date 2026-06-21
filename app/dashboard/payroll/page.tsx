@@ -610,28 +610,29 @@ export default function PayrollPage() {
     }
 
     const addHeader = (pageNum: number) => {
-      // Colored header bar
+      // Colored header bar - larger
       doc.setFillColor(31, 56, 100)
-      doc.rect(0, 0, pageWidth, 35, 'F')
+      doc.rect(0, 0, pageWidth, 42, 'F')
 
       // Company name
       doc.setTextColor(255, 255, 255)
-      doc.setFontSize(16)
+      doc.setFontSize(18)
       doc.setFont('helvetica', 'bold')
-      doc.text('Asociación Comunal Aguas del Tecomasuchi, C.A.', 15, 12)
+      doc.text('Asociación Comunal Aguas del Tecomasuchi, C.A.', 15, 14)
 
-      // Document title and period
-      doc.setFontSize(11)
+      // Document title - prominent
+      doc.setFontSize(13)
+      doc.setFont('helvetica', 'bold')
+      doc.text(`PLANILLA DE SALARIOS - ${monthName.toUpperCase()} ${year}`, 15, 26)
+
+      // Right side info - clear and visible
+      doc.setFontSize(9)
       doc.setFont('helvetica', 'normal')
-      doc.text(`PLANILLA DE SALARIOS - ${monthName.toUpperCase()} ${year}`, 15, 23)
-
-      // Right side info
-      doc.setFontSize(8)
-      doc.setTextColor(220, 220, 220)
-      const rightCol = pageWidth - 40
-      doc.text(`Período: ${monthName} ${year}`, rightCol, 12)
-      doc.text(`Generado: ${now.toLocaleDateString('es-SV')}`, rightCol, 17)
-      doc.text(`Hora: ${now.toLocaleTimeString('es-SV')}`, rightCol, 22)
+      doc.setTextColor(255, 255, 255)
+      const rightCol = pageWidth - 50
+      doc.text(`Período: ${monthName} ${year}`, rightCol, 14)
+      doc.text(`Generado: ${now.toLocaleDateString('es-SV')}`, rightCol, 21)
+      doc.text(`Hora: ${now.toLocaleTimeString('es-SV')}`, rightCol, 28)
     }
 
     const addFooter = (pageNum: number, totalPages: number) => {
@@ -649,7 +650,7 @@ export default function PayrollPage() {
     // Add header to first page
     addHeader(1)
 
-    let yPosition = 42
+    let yPosition = 50
     doc.setTextColor(0, 0, 0)
 
     // === SUMMARY SECTION ===
