@@ -59,16 +59,30 @@ export default function EmployerCostsPage() {
     }
   }, [supabase])
 
-  const fetchData = async () => {
+  const fetchData = async (fetchMonth?: number, fetchYear?: number) => {
     if (!supabase) return
     try {
       setIsLoading(true)
+      const queryMonth = fetchMonth !== undefined ? fetchMonth : month
+      const queryYear = fetchYear !== undefined ? fetchYear : year
+      console.log('[v0] Fetching employer costs for', queryMonth, '/', queryYear)
 
-      const [{ data: costs }, { data: empData }] = await Promise.all([
-        supabase.from('employer_costs').select('*'),
+      const [{ data: costs, error: costsError }, { data: empData }] = await Promise.all([
+        supabase
+          .from('employer_costs')
+          .select('*')
+          .eq('payroll_period_month', queryMonth)
+          .eq('payroll_period_year', queryYear)
+          .order('created_at', { ascending: false }),
         supabase.from('employees').select('id, first_name, last_name, cedula'),
       ])
 
+      if (costsError) {
+        console.error('[v0] Error fetching costs:', costsError)
+        throw costsError
+      }
+
+      console.log('[v0] Fetched costs:', costs)
       if (costs) setEmployerCosts(costs)
       if (empData) setEmployees(empData)
     } catch (error) {
@@ -362,7 +376,11 @@ export default function EmployerCostsPage() {
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="text-sm font-medium">Mes</label>
-            <Select value={String(month)} onValueChange={(v) => setMonth(parseInt(v))}>
+            <Select value={String(month)} onValueChange={(v) => {
+              const newMonth = parseInt(v)
+              setMonth(newMonth)
+              fetchData(newMonth, year)
+            }}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -378,7 +396,11 @@ export default function EmployerCostsPage() {
 
           <div>
             <label className="text-sm font-medium">Año</label>
-            <Select value={String(year)} onValueChange={(v) => setYear(parseInt(v))}>
+            <Select value={String(year)} onValueChange={(v) => {
+              const newYear = parseInt(v)
+              setYear(newYear)
+              fetchData(month, newYear)
+            }}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

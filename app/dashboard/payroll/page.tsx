@@ -517,13 +517,17 @@ export default function PayrollPage() {
       }
 
       setSelectedEmployees([])
-      setIsDialogOpen(false)
       setIsGenerating(false)
-      fetchAllData()
-      toast({
-        title: 'Éxito',
-        description: 'Planilla y costos patronales generados exitosamente',
-      })
+      
+      // Wait a moment then refresh data and close dialog
+      setTimeout(async () => {
+        await fetchAllData()
+        setIsDialogOpen(false)
+        toast({
+          title: 'Éxito',
+          description: 'Planilla y costos patronales generados exitosamente',
+        })
+      }, 500)
     } catch (error) {
       setIsGenerating(false)
       console.error('[v0] Error generating payroll:', error)
