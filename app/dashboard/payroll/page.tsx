@@ -650,7 +650,7 @@ export default function PayrollPage() {
     // Add header to first page
     addHeader(1)
 
-    let yPosition = 50
+    let yPosition = 56
     doc.setTextColor(0, 0, 0)
 
     // === SUMMARY SECTION ===
@@ -739,8 +739,8 @@ export default function PayrollPage() {
     const totalTableWidth = columnWidths.reduce((a, b) => a + b, 0)
 
     // Draw table header
-    doc.setFillColor(31, 56, 100)
-    doc.setTextColor(255, 255, 255)
+    doc.setFillColor(220, 220, 220)
+    doc.setTextColor(0, 0, 0)
     doc.setFontSize(7.5)
     doc.setFont('helvetica', 'bold')
 
@@ -959,13 +959,16 @@ export default function PayrollPage() {
 
   const openDetailModal = async (record: PayrollRecord) => {
     setSelectedPayroll(record)
+    console.log('[v0] Opening detail modal for payroll ID:', record.id)
     
     // Fetch employer costs for this payroll
     const { data: costs, error } = await supabase
       .from('employer_costs')
-      .select('isss_employer, afp_employer, employer_total_cost')
+      .select('*')
       .eq('payroll_id', record.id)
       .maybeSingle()
+    
+    console.log('[v0] Employer costs query result:', { costs, error })
     
     if (error) {
       console.error('[v0] Error fetching employer costs:', error)
