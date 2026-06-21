@@ -409,6 +409,77 @@ export default function ParametersPage() {
         </CardContent>
       </Card>
 
+      {/* Employer Costs Info */}
+      <Card className="bg-orange-50 border-orange-200">
+        <CardHeader>
+          <CardTitle className="text-orange-900">
+            Costos Patronales (Aportes del Empleador)
+          </CardTitle>
+          <CardDescription className="text-orange-700">
+            Descuentos y costos que carga la empresa por cada empleado
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* ISSS Employer */}
+          <div className="bg-white p-4 rounded-lg border border-orange-200">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-semibold text-orange-900">ISSS Patronal</h4>
+                <p className="text-sm text-orange-700 mt-1">
+                  Fórmula: salarioBase × {(parameters.find((p: any) => p.parameter_name === 'ISSS_EMPLOYER')?.value || 0.075)}
+                </p>
+                <p className="text-xs text-orange-600 mt-2">
+                  Aporte obligatorio del empleador al Instituto Salvadoreño del Seguro Social
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-orange-600">
+                  {((parameters.find((p: any) => p.parameter_name === 'ISSS_EMPLOYER')?.value || 0.075) * 100).toFixed(1)}%
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* AFP Employer */}
+          <div className="bg-white p-4 rounded-lg border border-orange-200">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-semibold text-orange-900">AFP Patronal</h4>
+                <p className="text-sm text-orange-700 mt-1">
+                  Fórmula: salarioBase × {(parameters.find((p: any) => p.parameter_name === 'AFP_EMPLOYER')?.value || 0.0875)}
+                </p>
+                <p className="text-xs text-orange-600 mt-2">
+                  Aporte obligatorio del empleador a las Administradoras de Fondos de Pensión
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-orange-600">
+                  {((parameters.find((p: any) => p.parameter_name === 'AFP_EMPLOYER')?.value || 0.0875) * 100).toFixed(2)}%
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Total Employer Cost */}
+          <div className="bg-orange-100 p-4 rounded-lg border border-orange-300">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-semibold text-orange-900">Costo Total Empresa</h4>
+                <p className="text-sm text-orange-700 mt-1">
+                  Salario Base + ISSS Patronal + AFP Patronal
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-orange-700">
+                  {(100 + ((parameters.find((p: any) => p.parameter_name === 'ISSS_EMPLOYER')?.value || 0.075) + (parameters.find((p: any) => p.parameter_name === 'AFP_EMPLOYER')?.value || 0.0875)) * 100).toFixed(2)}%
+                </p>
+                <p className="text-xs text-orange-600 mt-1">Del salario base</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Quincena 25 Configuration */}
       <Card className="bg-amber-50 border-amber-200">
         <CardHeader>
