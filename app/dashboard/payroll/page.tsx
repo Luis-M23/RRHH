@@ -69,8 +69,11 @@ interface PayrollRecord {
   isapres: number
   afp: number
   renta: number
+  absence_deduction: number
+  quincena_25: number
   other_deductions: number
   net_salary: number
+  total_income: number
   status: string
   created_at: string
 }
@@ -464,8 +467,11 @@ export default function PayrollPage() {
           isapres: result.isss,
           afp: result.afp,
           renta: result.renta,
-          other_deductions: result.absenceDeduction || 0,
+          absence_deduction: result.absenceDeduction || 0,
+          quincena_25: result.quincena25 || 0,
+          other_deductions: (result.absenceDeduction || 0) + (result.quincena25 || 0),
           net_salary: result.netSalary,
+          total_income: result.totalIncome,
           status: 'draft',
         }
 
@@ -883,6 +889,9 @@ export default function PayrollPage() {
                 <th className="text-right px-4 py-3 font-semibold text-gray-700">
                   Salario Neto
                 </th>
+                <th className="text-right px-4 py-3 font-semibold text-gray-700">
+                  Total a Pagar
+                </th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-700">
                   Estado
                 </th>
@@ -919,6 +928,9 @@ export default function PayrollPage() {
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-green-600">
                       ${record.net_salary.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-blue-600">
+                      ${(record.total_income || record.net_salary).toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span
