@@ -120,6 +120,7 @@ export default function PayrollPage() {
         ]
       )
 
+      console.log('[v0] Loaded employees:', employeesData)
       setEmployees(employeesData || [])
       setPayrollRecords(payrollData || [])
 
@@ -1028,6 +1029,8 @@ export default function PayrollPage() {
               <div>
                 <Label>Selecciona Empleados *</Label>
                 <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-300 rounded-md p-3">
+                  {console.log('[v0] Modal rendering with employees:', employees)}
+                  {employees.length === 0 && <p className="text-gray-500 text-sm">No hay empleados disponibles</p>}
                   {employees.map((emp) => (
                     <label
                       key={emp.id}
