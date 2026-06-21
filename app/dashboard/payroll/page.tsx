@@ -110,7 +110,7 @@ export default function PayrollPage() {
   const fetchAllData = async () => {
     try {
       setLoading(true)
-      const [{ data: employeesData }, { data: payrollData }, { data: parametersData }] = await Promise.all(
+      const [empResult, payrollResult, paramsResult] = await Promise.all(
         [
           supabase.from('employees').select('*').eq('status', 'active'),
           supabase
@@ -121,13 +121,22 @@ export default function PayrollPage() {
         ]
       )
 
-      setEmployees(employeesData || [])
-      setPayrollRecords(payrollData || [])
+      console.log('[v0] fetchAllData results:', {
+        employeesCount: empResult.data?.length || 0,
+        employeesError: empResult.error,
+        payrollCount: payrollResult.data?.length || 0,
+        payrollError: payrollResult.error,
+        paramsCount: paramsResult.data?.length || 0,
+        paramsError: paramsResult.error
+      })
+
+      setEmployees(empResult.data || [])
+      setPayrollRecords(payrollResult.data || [])
 
       // Load parameters from database - only use what's configured
       const params: PayrollParameters = {}
-      if (parametersData && parametersData.length > 0) {
-        parametersData.forEach((param: any) => {
+      if (paramsResult.data && paramsResult.data.length > 0) {
+        paramsResult.data.forEach((param: any) => {
           params[param.parameter_name] = {
             parameter_name: param.parameter_name,
             value: param.value,
