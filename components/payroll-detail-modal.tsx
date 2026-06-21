@@ -119,12 +119,12 @@ export function PayrollDetailModal({
                 </span>
               </div>
 
-              {/* Ausencias */}
-              {payrollData.absence_deduction && payrollData.absence_deduction > 0 && (
+              {/* Other Deductions */}
+              {other_deductions && other_deductions > 0 && (
                 <div className="flex justify-between items-center p-2 border-b">
-                  <span className="text-gray-600">Ausencias No Pagadas</span>
+                  <span className="text-gray-600">Otros Descuentos (Ausencias + Beneficios)</span>
                   <span className="text-red-600 font-medium">
-                    -${(payrollData.absence_deduction || 0).toFixed(2)}
+                    -${(other_deductions || 0).toFixed(2)}
                   </span>
                 </div>
               )}
@@ -153,25 +153,7 @@ export function PayrollDetailModal({
                 </span>
               </div>
 
-              {/* Quincena 25 */}
-              {payrollData.quincena_25 && payrollData.quincena_25 > 0 && (
-                <div className="flex justify-between items-center p-3 bg-amber-50 rounded-lg border border-amber-200">
-                  <span className="font-semibold text-amber-900">Quincena 25 (50% salario)</span>
-                  <span className="text-lg font-bold text-amber-600">
-                    +${(payrollData.quincena_25 || 0).toFixed(2)}
-                  </span>
-                </div>
-              )}
 
-              {/* Total Income */}
-              {payrollData.total_income && (
-                <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                  <span className="font-bold text-gray-700">Total a Pagar</span>
-                  <span className="text-xl font-bold text-blue-600">
-                    ${(payrollData.total_income || net_salary).toFixed(2)}
-                  </span>
-                </div>
-              )}
             </CardContent>
           </Card>
 
