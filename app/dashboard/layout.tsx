@@ -23,6 +23,7 @@ import {
   Home,
   Sliders,
   Calendar,
+  DollarSign,
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -70,6 +71,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       label: 'Planillas',
       href: '/dashboard/payroll',
       icon: FileText,
+    },
+    {
+      label: 'Costos Patronales',
+      href: '/dashboard/employer-costs',
+      icon: DollarSign,
     },
     {
       label: 'Parámetros de Descuentos',

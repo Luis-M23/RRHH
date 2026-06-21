@@ -473,18 +473,39 @@ export default function PayrollPage() {
         return payload
       })
 
-      const { error } = await supabase
+      const { data: insertedPayrolls, error } = await supabase
         .from('payroll_records')
         .insert(payrollsToInsert.filter(Boolean))
+        .select('id, employee_id, gross_salary, payroll_period_month, payroll_period_year')
 
       if (error) throw error
+
+      // Generate employer costs for each payroll record
+      if (insertedPayrolls && insertedPayrolls.length > 0) {
+        const employerCostsToInsert = insertedPayrolls.map((payroll) => ({
+          payroll_id: payroll.id,
+          employee_id: payroll.employee_id,
+          payroll_period_month: payroll.payroll_period_month,
+          payroll_period_year: payroll.payroll_period_year,
+          salary_base: payroll.gross_salary,
+          isss_employer: parseFloat((payroll.gross_salary * 0.075).toFixed(2)), // 7.5%
+          afp_employer: parseFloat((payroll.gross_salary * 0.0875).toFixed(2)), // 8.75%
+          employer_total_cost: parseFloat((payroll.gross_salary * (1 + 0.075 + 0.0875)).toFixed(2)),
+        }))
+
+        const { error: costError } = await supabase
+          .from('employer_costs')
+          .insert(employerCostsToInsert)
+
+        if (costError) throw costError
+      }
 
       setSelectedEmployees([])
       setIsDialogOpen(false)
       fetchAllData()
       toast({
         title: 'Éxito',
-        description: 'Planilla generada exitosamente',
+        description: 'Planilla y costos patronales generados exitosamente',
       })
     } catch (error) {
       console.error('[v0] Error generating payroll:', error)
