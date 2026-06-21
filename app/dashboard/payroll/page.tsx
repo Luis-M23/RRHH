@@ -98,6 +98,7 @@ export default function PayrollPage() {
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollRecord | null>(null)
   const [isApproving, setIsApproving] = useState(false)
   const [enableQuincena25, setEnableQuincena25] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
   const supabase = createClient()
   const { toast } = useToast()
 
@@ -361,16 +362,18 @@ export default function PayrollPage() {
   }
 
   const handleGeneratePayroll = async () => {
-    if (selectedEmployees.length === 0) {
-      toast({
-        title: 'Selección requerida',
-        description: 'Por favor selecciona al menos un empleado',
-        variant: 'destructive',
-      })
-      return
-    }
-
     try {
+      setIsGenerating(true)
+      if (selectedEmployees.length === 0) {
+        toast({
+          title: 'Advertencia',
+          description: 'Selecciona al menos un empleado',
+          variant: 'default',
+        })
+        setIsGenerating(false)
+        return
+      }
+
       // Validate employee antiquity
       const invalidAntiquityEmployees = selectedEmployees.filter((empId) => {
         const employee = employees.find((e) => e.id === empId)
@@ -482,36 +485,51 @@ export default function PayrollPage() {
 
       // Generate employer costs for each payroll record
       if (insertedPayrolls && insertedPayrolls.length > 0) {
+        // Get employer cost parameters from database
+        const { data: employerParams } = await supabase
+          .from('payroll_parameters')
+          .select('*')
+          .in('parameter_name', ['ISSS_EMPLOYER', 'AFP_EMPLOYER'])
+        
+        // Set default values if not found
+        const isssEmployerRate = employerParams?.find((p: any) => p.parameter_name === 'ISSS_EMPLOYER')?.value || 0.075
+        const afpEmployerRate = employerParams?.find((p: any) => p.parameter_name === 'AFP_EMPLOYER')?.value || 0.0875
+
         const employerCostsToInsert = insertedPayrolls.map((payroll) => ({
           payroll_id: payroll.id,
           employee_id: payroll.employee_id,
           payroll_period_month: payroll.payroll_period_month,
           payroll_period_year: payroll.payroll_period_year,
           salary_base: payroll.gross_salary,
-          isss_employer: parseFloat((payroll.gross_salary * 0.075).toFixed(2)), // 7.5%
-          afp_employer: parseFloat((payroll.gross_salary * 0.0875).toFixed(2)), // 8.75%
-          employer_total_cost: parseFloat((payroll.gross_salary * (1 + 0.075 + 0.0875)).toFixed(2)),
+          isss_employer: parseFloat((payroll.gross_salary * isssEmployerRate).toFixed(2)),
+          afp_employer: parseFloat((payroll.gross_salary * afpEmployerRate).toFixed(2)),
+          employer_total_cost: parseFloat((payroll.gross_salary * (1 + isssEmployerRate + afpEmployerRate)).toFixed(2)),
         }))
 
         const { error: costError } = await supabase
           .from('employer_costs')
           .insert(employerCostsToInsert)
 
-        if (costError) throw costError
+        if (costError) {
+          console.error('[v0] Error inserting employer costs:', costError)
+          throw costError
+        }
       }
 
       setSelectedEmployees([])
       setIsDialogOpen(false)
+      setIsGenerating(false)
       fetchAllData()
       toast({
         title: 'Éxito',
         description: 'Planilla y costos patronales generados exitosamente',
       })
     } catch (error) {
+      setIsGenerating(false)
       console.error('[v0] Error generating payroll:', error)
       toast({
         title: 'Error',
-        description: 'Error al generar la planilla',
+        description: `Error al generar la planilla: ${error instanceof Error ? error.message : 'Error desconocido'}`,
         variant: 'destructive',
       })
     }
@@ -1058,8 +1076,9 @@ export default function PayrollPage() {
                 <Button
                   className="bg-gradient-to-r from-blue-600 to-emerald-600"
                   onClick={handleGeneratePayroll}
+                  disabled={isGenerating}
                 >
-                  Generar Planilla
+                  {isGenerating ? 'Generando...' : 'Generar Planilla'}
                 </Button>
               </div>
             </div>
