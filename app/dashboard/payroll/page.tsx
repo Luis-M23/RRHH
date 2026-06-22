@@ -28,6 +28,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { FileText, Download, Plus, Eye, Trash2, CheckCircle2 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import * as XLSX from 'xlsx'
@@ -98,6 +108,9 @@ export default function PayrollPage() {
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollRecord | null>(null)
   const [isApproving, setIsApproving] = useState(false)
   const [enableQuincena25, setEnableQuincena25] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [payrollToDelete, setPayrollToDelete] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const supabase = createClient()
   const { toast } = useToast()
@@ -169,8 +182,9 @@ export default function PayrollPage() {
   }
 
   // Valida si se puede generar Quincena 25 (solo entre 15 y 25 de enero)
-  const canGenerateQuincena25 = (month: number, day: number): boolean => {
-    return month === 1 && day >= 15 && day <= 25
+  // Quincena 25 only applies to the January payroll period
+  const canGenerateQuincena25 = (month: number): boolean => {
+    return month === 1
   }
 
   // Calcula el ISSS laboral con techo máximo de $30.00
@@ -430,15 +444,14 @@ export default function PayrollPage() {
         })
       }
 
-      // Check if trying to generate Quincena 25 outside of valid period
-      const today = new Date()
-      const currentDay = today.getDate()
-      if (enableQuincena25 && !canGenerateQuincena25(month, currentDay)) {
+      // Check if trying to generate Quincena 25 outside of January
+      if (enableQuincena25 && !canGenerateQuincena25(month)) {
         toast({
           title: 'Período inválido para Quincena 25',
-          description: `Quincena 25 solo puede generarse en enero entre los días 15 y 25. Hoy es ${currentDay}/${month}/${year}. Por favor, intenta en el período permitido.`,
+          description: `La Quincena 25 solo puede incluirse en planillas del mes de enero. El período seleccionado es ${month}/${year}, por lo que no es posible aplicar este beneficio.`,
           variant: 'destructive',
         })
+        setIsGenerating(false)
         return
       }
 
@@ -476,69 +489,36 @@ export default function PayrollPage() {
         return payload
       })
 
-      const { data: insertedPayrolls, error } = await supabase
+      const validPayrolls = payrollsToInsert.filter(Boolean)
+      const { error } = await supabase
         .from('payroll_records')
-        .insert(payrollsToInsert.filter(Boolean))
-        .select('id, employee_id, gross_salary, payroll_period_month, payroll_period_year')
+        .insert(validPayrolls)
 
       if (error) throw error
 
-      // Generate employer costs for each payroll record
-      if (insertedPayrolls && insertedPayrolls.length > 0) {
-        // Get employer cost parameters from database
-        const { data: employerParams } = await supabase
-          .from('payroll_parameters')
-          .select('*')
-          .in('parameter_name', ['ISSS_EMPLOYER', 'AFP_EMPLOYER'])
-        
-        // Set default values if not found
-        const isssEmployerRate = employerParams?.find((p: any) => p.parameter_name === 'ISSS_EMPLOYER')?.value || 0.075
-        const afpEmployerRate = employerParams?.find((p: any) => p.parameter_name === 'AFP_EMPLOYER')?.value || 0.0875
+      // Refresh data and wait for it so the new payrolls show immediately
+      await fetchAllData()
 
-        const employerCostsToInsert = insertedPayrolls.map((payroll) => ({
-          payroll_id: payroll.id,
-          employee_id: payroll.employee_id,
-          payroll_period_month: payroll.payroll_period_month,
-          payroll_period_year: payroll.payroll_period_year,
-          salary_base: payroll.gross_salary,
-          isss_employer: parseFloat((payroll.gross_salary * isssEmployerRate).toFixed(2)),
-          afp_employer: parseFloat((payroll.gross_salary * afpEmployerRate).toFixed(2)),
-          employer_total_cost: parseFloat((payroll.gross_salary * (1 + isssEmployerRate + afpEmployerRate)).toFixed(2)),
-        }))
-
-        const { error: costError } = await supabase
-          .from('employer_costs')
-          .insert(employerCostsToInsert)
-
-        if (costError) {
-          console.error('[v0] Error inserting employer costs:', costError)
-          throw costError
-        }
-      }
-
-      console.log('[v0] Payroll generation successful')
-      
-      // Close dialog and clear form IMMEDIATELY
+      // Close dialog and clear form
       setIsDialogOpen(false)
       setSelectedEmployees([])
+      setEnableQuincena25(false)
       setIsGenerating(false)
-      
+
       // Show success message
       toast({
-        title: 'Éxito',
-        description: 'Planilla y costos patronales generados exitosamente',
+        title: 'Planilla generada',
+        description: `Se ${validPayrolls.length === 1 ? 'generó' : 'generaron'} ${validPayrolls.length} planilla${validPayrolls.length === 1 ? '' : 's'} correctamente para ${month}/${year}.`,
       })
-      
-      // Refresh data in background (non-blocking)
-      fetchAllData().catch(err => console.error('[v0] Background refresh failed:', err))
     } catch (error) {
-      setIsGenerating(false)
       console.error('[v0] Error generating payroll:', error)
       toast({
         title: 'Error',
         description: `Error al generar la planilla: ${error instanceof Error ? error.message : 'Error desconocido'}`,
         variant: 'destructive',
       })
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -571,21 +551,39 @@ export default function PayrollPage() {
     }
   }
 
-  const handleDeletePayroll = async (recordId: string) => {
-    if (!window.confirm('¿Deseas eliminar este registro de planilla?')) {
-      return
-    }
+  const requestDeletePayroll = (recordId: string) => {
+    setPayrollToDelete(recordId)
+    setDeleteConfirmOpen(true)
+  }
+
+  const confirmDeletePayroll = async () => {
+    if (!payrollToDelete) return
 
     try {
+      setIsDeleting(true)
       const { error } = await supabase
         .from('payroll_records')
         .delete()
-        .eq('id', recordId)
+        .eq('id', payrollToDelete)
 
       if (error) throw error
-      fetchAllData()
+
+      await fetchAllData()
+      toast({
+        title: 'Planilla eliminada',
+        description: 'El registro de planilla se eliminó correctamente.',
+      })
     } catch (error) {
       console.error('Error deleting payroll:', error)
+      toast({
+        title: 'Error',
+        description: 'No se pudo eliminar la planilla. Intenta nuevamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsDeleting(false)
+      setDeleteConfirmOpen(false)
+      setPayrollToDelete(null)
     }
   }
 
@@ -1091,7 +1089,19 @@ export default function PayrollPage() {
                   <input
                     type="checkbox"
                     checked={enableQuincena25}
-                    onChange={(e) => setEnableQuincena25(e.target.checked)}
+                    onChange={(e) => {
+                      const checked = e.target.checked
+                      if (checked && !canGenerateQuincena25(month)) {
+                        toast({
+                          title: 'Período inválido para Quincena 25',
+                          description: `La Quincena 25 solo aplica para planillas del mes de enero. El período seleccionado es ${month}/${year}.`,
+                          variant: 'destructive',
+                        })
+                        setEnableQuincena25(false)
+                        return
+                      }
+                      setEnableQuincena25(checked)
+                    }}
                     className="w-4 h-4"
                   />
                   <div>
@@ -1283,7 +1293,7 @@ export default function PayrollPage() {
                           size="sm"
                           variant="outline"
                           className="text-red-600"
-                          onClick={() => handleDeletePayroll(record.id)}
+                          onClick={() => requestDeletePayroll(record.id)}
                         >
                           <Trash2 size={16} />
                         </Button>
@@ -1313,6 +1323,32 @@ export default function PayrollPage() {
           isApproving={isApproving}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar planilla</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas eliminar este registro de planilla? Esta
+              acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                confirmDeletePayroll()
+              }}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? 'Eliminando...' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
