@@ -739,16 +739,16 @@ export default function PayrollPage() {
     const tableStartY = yPosition
     const totalTableWidth = columnWidths.reduce((a, b) => a + b, 0)
 
-    // Draw table header - gray background with black text and borders
-    doc.setFillColor(220, 220, 220)
-    doc.setDrawColor(180, 180, 180)
-    doc.setTextColor(0, 0, 0)
+    // Draw table header - navy background with white text (matches top header)
+    doc.setFillColor(31, 56, 100)
+    doc.setDrawColor(31, 56, 100)
     doc.setFontSize(7.5)
     doc.setFont('helvetica', 'bold')
 
     let currentX = tableStartX
     headers.forEach((header, i) => {
       doc.rect(currentX, tableStartY, columnWidths[i], 7, 'FD')
+      doc.setTextColor(255, 255, 255)
       doc.text(header, currentX + columnWidths[i] / 2, tableStartY + 4.5, {
         align: 'center',
       })
@@ -772,15 +772,15 @@ export default function PayrollPage() {
         doc.addPage()
         addHeader(doc.internal.getNumberOfPages())
         
-        // Redraw table header on new page - gray background with black text
-        doc.setFillColor(220, 220, 220)
-        doc.setDrawColor(180, 180, 180)
-        doc.setTextColor(0, 0, 0)
+        // Redraw table header on new page - navy background with white text
+        doc.setFillColor(31, 56, 100)
+        doc.setDrawColor(31, 56, 100)
         doc.setFontSize(7.5)
         doc.setFont('helvetica', 'bold')
         currentX = tableStartX
         headers.forEach((header, i) => {
           doc.rect(currentX, 46, columnWidths[i], 7, 'FD')
+          doc.setTextColor(255, 255, 255)
           doc.text(header, currentX + columnWidths[i] / 2, 50.5, {
             align: 'center',
           })
