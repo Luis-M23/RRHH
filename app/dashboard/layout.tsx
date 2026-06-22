@@ -12,18 +12,18 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  BarChart3,
-  Users,
-  Building2,
-  Briefcase,
-  FileText,
-  LogOut,
-  Menu,
-  X,
-  Home,
-  Sliders,
-  Calendar,
-} from 'lucide-react'
+    BarChart3,
+    Users,
+    Building2,
+    Briefcase,
+    FileText,
+    LogOut,
+    Menu,
+    X,
+    Home,
+    Sliders,
+    Calendar,
+  } from 'lucide-react'
 
 interface DashboardLayoutProps {
   children: React.ReactNode

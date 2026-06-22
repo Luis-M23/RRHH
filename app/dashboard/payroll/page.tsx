@@ -28,6 +28,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { FileText, Download, Plus, Eye, Trash2, CheckCircle2 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import * as XLSX from 'xlsx'
@@ -98,6 +108,10 @@ export default function PayrollPage() {
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollRecord | null>(null)
   const [isApproving, setIsApproving] = useState(false)
   const [enableQuincena25, setEnableQuincena25] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [payrollToDelete, setPayrollToDelete] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
   const supabase = createClient()
   const { toast } = useToast()
 
@@ -108,7 +122,7 @@ export default function PayrollPage() {
   const fetchAllData = async () => {
     try {
       setLoading(true)
-      const [{ data: employeesData }, { data: payrollData }, { data: parametersData }] = await Promise.all(
+      const [empResult, payrollResult, paramsResult] = await Promise.all(
         [
           supabase.from('employees').select('*').eq('status', 'active'),
           supabase
@@ -119,13 +133,13 @@ export default function PayrollPage() {
         ]
       )
 
-      setEmployees(employeesData || [])
-      setPayrollRecords(payrollData || [])
+      setEmployees(empResult.data || [])
+      setPayrollRecords(payrollResult.data || [])
 
       // Load parameters from database - only use what's configured
       const params: PayrollParameters = {}
-      if (parametersData && parametersData.length > 0) {
-        parametersData.forEach((param: any) => {
+      if (paramsResult.data && paramsResult.data.length > 0) {
+        paramsResult.data.forEach((param: any) => {
           params[param.parameter_name] = {
             parameter_name: param.parameter_name,
             value: param.value,
@@ -168,8 +182,9 @@ export default function PayrollPage() {
   }
 
   // Valida si se puede generar Quincena 25 (solo entre 15 y 25 de enero)
-  const canGenerateQuincena25 = (month: number, day: number): boolean => {
-    return month === 1 && day >= 15 && day <= 25
+  // Quincena 25 only applies to the January payroll period
+  const canGenerateQuincena25 = (month: number): boolean => {
+    return month === 1
   }
 
   // Calcula el ISSS laboral con techo máximo de $30.00
@@ -361,16 +376,18 @@ export default function PayrollPage() {
   }
 
   const handleGeneratePayroll = async () => {
-    if (selectedEmployees.length === 0) {
-      toast({
-        title: 'Selección requerida',
-        description: 'Por favor selecciona al menos un empleado',
-        variant: 'destructive',
-      })
-      return
-    }
-
     try {
+      setIsGenerating(true)
+      if (selectedEmployees.length === 0) {
+        toast({
+          title: 'Advertencia',
+          description: 'Selecciona al menos un empleado',
+          variant: 'default',
+        })
+        setIsGenerating(false)
+        return
+      }
+
       // Validate employee antiquity
       const invalidAntiquityEmployees = selectedEmployees.filter((empId) => {
         const employee = employees.find((e) => e.id === empId)
@@ -427,15 +444,14 @@ export default function PayrollPage() {
         })
       }
 
-      // Check if trying to generate Quincena 25 outside of valid period
-      const today = new Date()
-      const currentDay = today.getDate()
-      if (enableQuincena25 && !canGenerateQuincena25(month, currentDay)) {
+      // Check if trying to generate Quincena 25 outside of January
+      if (enableQuincena25 && !canGenerateQuincena25(month)) {
         toast({
           title: 'Período inválido para Quincena 25',
-          description: `Quincena 25 solo puede generarse en enero entre los días 15 y 25. Hoy es ${currentDay}/${month}/${year}. Por favor, intenta en el período permitido.`,
+          description: `La Quincena 25 solo puede incluirse en planillas del mes de enero. El período seleccionado es ${month}/${year}, por lo que no es posible aplicar este beneficio.`,
           variant: 'destructive',
         })
+        setIsGenerating(false)
         return
       }
 
@@ -456,6 +472,7 @@ export default function PayrollPage() {
         const result = calculatePayroll(employee.salary, currentParams, employeeAbsences, enableQuincena25)
 
         // Initialize base payload with standard fields
+        // Note: other_deductions should only contain absences, Quincena 25 is added to net_salary
         const payload: any = {
           employee_id: employeeId,
           payroll_period_month: month,
@@ -465,33 +482,43 @@ export default function PayrollPage() {
           afp: result.afp,
           renta: result.renta,
           other_deductions: result.absenceDeduction || 0,
-          net_salary: result.netSalary,
+          net_salary: result.totalIncome, // Total income includes Quincena 25 if applicable
           status: 'draft',
         }
 
         return payload
       })
 
+      const validPayrolls = payrollsToInsert.filter(Boolean)
       const { error } = await supabase
         .from('payroll_records')
-        .insert(payrollsToInsert.filter(Boolean))
+        .insert(validPayrolls)
 
       if (error) throw error
 
-      setSelectedEmployees([])
+      // Refresh data and wait for it so the new payrolls show immediately
+      await fetchAllData()
+
+      // Close dialog and clear form
       setIsDialogOpen(false)
-      fetchAllData()
+      setSelectedEmployees([])
+      setEnableQuincena25(false)
+      setIsGenerating(false)
+
+      // Show success message
       toast({
-        title: 'Éxito',
-        description: 'Planilla generada exitosamente',
+        title: 'Planilla generada',
+        description: `Se ${validPayrolls.length === 1 ? 'generó' : 'generaron'} ${validPayrolls.length} planilla${validPayrolls.length === 1 ? '' : 's'} correctamente para ${month}/${year}.`,
       })
     } catch (error) {
       console.error('[v0] Error generating payroll:', error)
       toast({
         title: 'Error',
-        description: 'Error al generar la planilla',
+        description: `Error al generar la planilla: ${error instanceof Error ? error.message : 'Error desconocido'}`,
         variant: 'destructive',
       })
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -524,93 +551,255 @@ export default function PayrollPage() {
     }
   }
 
-  const handleDeletePayroll = async (recordId: string) => {
-    if (!window.confirm('¿Deseas eliminar este registro de planilla?')) {
-      return
-    }
+  const requestDeletePayroll = (recordId: string) => {
+    setPayrollToDelete(recordId)
+    setDeleteConfirmOpen(true)
+  }
+
+  const confirmDeletePayroll = async () => {
+    if (!payrollToDelete) return
 
     try {
+      setIsDeleting(true)
       const { error } = await supabase
         .from('payroll_records')
         .delete()
-        .eq('id', recordId)
+        .eq('id', payrollToDelete)
 
       if (error) throw error
-      fetchAllData()
+
+      await fetchAllData()
+      toast({
+        title: 'Planilla eliminada',
+        description: 'El registro de planilla se eliminó correctamente.',
+      })
     } catch (error) {
       console.error('Error deleting payroll:', error)
+      toast({
+        title: 'Error',
+        description: 'No se pudo eliminar la planilla. Intenta nuevamente.',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsDeleting(false)
+      setDeleteConfirmOpen(false)
+      setPayrollToDelete(null)
     }
   }
 
   const exportToPDF = () => {
-    const doc = new jsPDF()
+    const doc = new jsPDF('p', 'mm', 'letter')
     const now = new Date()
-
-    doc.setFontSize(16)
-    doc.text('Asociación Comunal Aguas del Tecomasuchi, C.A.', 105, 15, {
-      align: 'center',
-    })
-    doc.setFontSize(12)
-    doc.text(`Planilla de Salarios - ${month}/${year}`, 105, 25, {
-      align: 'center',
-    })
-    doc.text(
-      `Generado: ${now.toLocaleDateString('es-SV')}`,
-      105,
-      32,
-      { align: 'center' }
-    )
-
-    let yPosition = 45
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    const monthName = monthNames[month - 1]
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
 
     const filteredRecords = payrollRecords.filter(
       (r) => r.payroll_period_month === month && r.payroll_period_year === year
     )
 
     if (filteredRecords.length === 0) {
-      doc.text('No hay registros de planilla para este período', 15, yPosition)
+      doc.text('No hay registros de planilla para este período', 15, 50)
       doc.save(`planilla-${month}-${year}.pdf`)
       return
     }
 
-    doc.setFontSize(10)
-    doc.setTextColor(255, 255, 255)
-    doc.setFillColor(59, 130, 246) // Blue
+    const addHeader = (pageNum: number) => {
+      // Colored header bar
+      doc.setFillColor(31, 56, 100)
+      doc.rect(0, 0, pageWidth, 40, 'F')
 
-    const headers = [
-      'Empleado',
-      'Cédula',
-      'Salario Base',
-      'ISAPRES',
-      'AFP',
-      'RENTA',
-      'Neto',
-    ]
-    const columnWidths = [30, 25, 25, 20, 20, 20, 25]
-    let xPosition = 15
+      // Company name - sized to avoid overlap with right-side metadata
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(13)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Asociación Comunal Aguas del Tecomasuchi, C.A.', 15, 13)
 
-    headers.forEach((header, i) => {
-      doc.rect(
-        xPosition,
-        yPosition - 5,
-        columnWidths[i],
-        7,
-        'F'
+      // Document title
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`PLANILLA DE SALARIOS - ${monthName.toUpperCase()} ${year}`, 15, 22)
+
+      // Right side metadata - right-aligned, placed on its own line below to avoid overlap
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(220, 225, 235)
+      doc.text(
+        `Período: ${monthName} ${year}  |  Generado: ${now.toLocaleDateString('es-SV')}  |  Hora: ${now.toLocaleTimeString('es-SV')}`,
+        pageWidth - 15,
+        33,
+        { align: 'right' }
       )
-      doc.text(header, xPosition + 2, yPosition, { maxWidth: columnWidths[i] })
-      xPosition += columnWidths[i]
-    })
+    }
 
-    yPosition += 10
+    const addFooter = (pageNum: number, totalPages: number) => {
+      doc.setFontSize(8)
+      doc.setTextColor(150, 150, 150)
+      doc.setDrawColor(200, 200, 200)
+      doc.line(15, pageHeight - 12, pageWidth - 15, pageHeight - 12)
+      doc.text(
+        `Página ${pageNum} de ${totalPages} | Sistema de Gestión de Planillas | ${now.toLocaleDateString('es-SV')}`,
+        15,
+        pageHeight - 8
+      )
+    }
+
+    // Add header to first page
+    addHeader(1)
+
+    let yPosition = 56
     doc.setTextColor(0, 0, 0)
 
+    // === SUMMARY SECTION ===
+    doc.setFontSize(10)
+    doc.setFont('helvetica', 'bold')
+    doc.text('RESUMEN DEL PERÍODO', 15, yPosition)
+    yPosition += 7
+
+    // Calculate summary totals
+    const summary = filteredRecords.reduce(
+      (acc, record) => ({
+        totalEmployees: acc.totalEmployees + 1,
+        totalGross: acc.totalGross + record.gross_salary,
+        totalISS: acc.totalISS + record.isapres,
+        totalAFP: acc.totalAFP + record.afp,
+        totalRENTA: acc.totalRENTA + record.renta,
+        totalNet: acc.totalNet + record.net_salary,
+      }),
+      {
+        totalEmployees: 0,
+        totalGross: 0,
+        totalISS: 0,
+        totalAFP: 0,
+        totalRENTA: 0,
+        totalNet: 0,
+      }
+    )
+
+    // Summary grid (2 columns)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    const col1 = 15
+    const col2 = 110
+    
+    doc.text(`Total de Empleados:`, col1, yPosition)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`${summary.totalEmployees}`, col2, yPosition)
+    yPosition += 5
+
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Salario Base Total:`, col1, yPosition)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`$${summary.totalGross.toFixed(2)}`, col2, yPosition)
+    yPosition += 5
+
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Total ISSS:`, col1, yPosition)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`$${summary.totalISS.toFixed(2)}`, col2, yPosition)
+    yPosition += 5
+
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Total AFP:`, col1, yPosition)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`$${summary.totalAFP.toFixed(2)}`, col2, yPosition)
+    yPosition += 5
+
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Total RENTA:`, col1, yPosition)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`$${summary.totalRENTA.toFixed(2)}`, col2, yPosition)
+    yPosition += 7
+
+    // Total NET highlight
+    doc.setFillColor(200, 215, 240)
+    doc.rect(15, yPosition - 4, pageWidth - 30, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.setTextColor(31, 56, 100)
+    doc.text('TOTAL A PAGAR NETO:', col1, yPosition + 2)
+    doc.text(`$${summary.totalNet.toFixed(2)}`, col2, yPosition + 2)
+    yPosition += 12
+
+    // === DETAIL TABLE ===
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('DETALLE DE EMPLEADOS', 15, yPosition)
+    yPosition += 6
+
+    // Table setup - optimized for letter page
+    const headers = ['Empleado', 'Cédula', 'Salario', 'ISSS', 'AFP', 'RENTA', 'Neto']
+    const columnWidths = [30, 18, 20, 16, 16, 16, 25]
+    const tableStartX = 12
+    const tableStartY = yPosition
+    const totalTableWidth = columnWidths.reduce((a, b) => a + b, 0)
+
+    // Draw table header - navy background with white text (matches top header)
+    doc.setFillColor(31, 56, 100)
+    doc.setDrawColor(31, 56, 100)
+    doc.setFontSize(7.5)
+    doc.setFont('helvetica', 'bold')
+
+    let currentX = tableStartX
+    headers.forEach((header, i) => {
+      doc.rect(currentX, tableStartY, columnWidths[i], 7, 'FD')
+      doc.setTextColor(255, 255, 255)
+      doc.text(header, currentX + columnWidths[i] / 2, tableStartY + 4.5, {
+        align: 'center',
+      })
+      currentX += columnWidths[i]
+    })
+
+    yPosition = tableStartY + 7
+    doc.setTextColor(0, 0, 0)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+
+    // Draw table rows
+    let rowCount = 0
     filteredRecords.forEach((record) => {
       const employee = employees.find((e) => e.id === record.employee_id)
       if (!employee) return
 
+      // Check if we need a new page
+      if (yPosition > pageHeight - 18) {
+        addFooter(doc.internal.getNumberOfPages(), 1)
+        doc.addPage()
+        addHeader(doc.internal.getNumberOfPages())
+        
+        // Redraw table header on new page - navy background with white text
+        doc.setFillColor(31, 56, 100)
+        doc.setDrawColor(31, 56, 100)
+        doc.setFontSize(7.5)
+        doc.setFont('helvetica', 'bold')
+        currentX = tableStartX
+        headers.forEach((header, i) => {
+          doc.rect(currentX, 46, columnWidths[i], 7, 'FD')
+          doc.setTextColor(255, 255, 255)
+          doc.text(header, currentX + columnWidths[i] / 2, 50.5, {
+            align: 'center',
+          })
+          currentX += columnWidths[i]
+        })
+        
+        yPosition = 55
+        doc.setTextColor(0, 0, 0)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7)
+      }
+
+      // Alternate row background
+      if (rowCount % 2 === 0) {
+        doc.setFillColor(245, 245, 245)
+        doc.rect(tableStartX, yPosition - 2.5, totalTableWidth, 5, 'F')
+      }
+
       const values = [
         `${employee.first_name} ${employee.last_name}`,
-        employee.cedula,
+        employee.cedula || 'N/A',
         `$${record.gross_salary.toFixed(2)}`,
         `$${record.isapres.toFixed(2)}`,
         `$${record.afp.toFixed(2)}`,
@@ -618,64 +807,159 @@ export default function PayrollPage() {
         `$${record.net_salary.toFixed(2)}`,
       ]
 
-      xPosition = 15
+      doc.setTextColor(0, 0, 0)
+      currentX = tableStartX
       values.forEach((value, i) => {
-        doc.text(value, xPosition + 2, yPosition, { maxWidth: columnWidths[i] })
-        xPosition += columnWidths[i]
+        const isNumeric = i > 1
+        const align = isNumeric ? 'right' : 'left'
+        const xOffset = isNumeric ? columnWidths[i] - 0.5 : 0.5
+        
+        doc.text(value, currentX + xOffset, yPosition, {
+          maxWidth: columnWidths[i] - 1,
+          align: align,
+        })
+        currentX += columnWidths[i]
       })
 
-      yPosition += 7
-      if (yPosition > 270) {
-        doc.addPage()
-        yPosition = 20
+      yPosition += 5
+      rowCount++
+    })
+
+    // Add footers to all pages
+    const totalPages = doc.internal.getNumberOfPages()
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i)
+      addFooter(i, totalPages)
+    }
+
+    doc.save(`planilla-${monthName}-${year}.pdf`)
+  }
+
+  const exportToExcel = () => {
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    const monthName = monthNames[month - 1]
+
+    const filteredRecords = payrollRecords.filter(
+      (r) => r.payroll_period_month === month && r.payroll_period_year === year
+    )
+
+    if (filteredRecords.length === 0) {
+      toast({
+        title: 'Sin datos',
+        description: 'No hay registros de planilla para exportar',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Calculate summary totals
+    const summary = filteredRecords.reduce(
+      (acc, record) => ({
+        totalEmployees: acc.totalEmployees + 1,
+        totalGross: acc.totalGross + record.gross_salary,
+        totalISS: acc.totalISS + record.isapres,
+        totalAFP: acc.totalAFP + record.afp,
+        totalRENTA: acc.totalRENTA + record.renta,
+        totalNet: acc.totalNet + record.net_salary,
+      }),
+      {
+        totalEmployees: 0,
+        totalGross: 0,
+        totalISS: 0,
+        totalAFP: 0,
+        totalRENTA: 0,
+        totalNet: 0,
+      }
+    )
+
+    // Prepare data for Excel
+    const data: any[] = []
+
+    // Add header info
+    data.push(['PLANILLA DE SALARIOS'])
+    data.push(['Asociación Comunal Aguas del Tecomasuchi, C.A.'])
+    data.push([`Período: ${monthName} ${year}`])
+    data.push([`Generado: ${new Date().toLocaleDateString('es-SV')}`])
+    data.push([])
+
+    // Add summary
+    data.push(['RESUMEN DEL PERÍODO'])
+    data.push(['Total de Empleados:', summary.totalEmployees])
+    data.push(['Salario Base Total:', summary.totalGross])
+    data.push(['Total ISSS:', summary.totalISS])
+    data.push(['Total AFP:', summary.totalAFP])
+    data.push(['Total RENTA:', summary.totalRENTA])
+    data.push(['TOTAL A PAGAR:', summary.totalNet])
+    data.push([])
+
+    // Add employee details
+    data.push(['DETALLE DE EMPLEADOS'])
+    data.push([
+      'Empleado',
+      'Cédula',
+      'Salario Base',
+      'ISSS',
+      'AFP',
+      'RENTA',
+      'Otros Descuentos',
+      'Salario Neto',
+      'Estado',
+    ])
+
+    filteredRecords.forEach((record) => {
+      const employee = employees.find((e) => e.id === record.employee_id)
+      if (!employee) return
+
+      data.push([
+        `${employee.first_name} ${employee.last_name}`,
+        employee.cedula || 'N/A',
+        record.gross_salary,
+        record.isapres,
+        record.afp,
+        record.renta,
+        record.other_deductions,
+        record.net_salary,
+        record.status,
+      ])
+    })
+
+    // Create workbook
+    const ws = XLSX.utils.aoa_to_sheet(data)
+    
+    // Set column widths
+    const colWidths = [25, 18, 20, 15, 15, 15, 18, 18, 15]
+    ws['!cols'] = colWidths.map((width) => ({ wch: width }))
+
+    // Style header rows
+    const headerRows = [0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 13]
+    headerRows.forEach((rowIdx) => {
+      for (let colIdx = 0; colIdx < 9; colIdx++) {
+        const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx })
+        if (ws[cellRef]) {
+          ws[cellRef].s = {
+            font: { bold: true },
+            fill: { fgColor: { rgb: '1F3864' }, patternType: 'solid' },
+            font: { bold: true, color: { rgb: 'FFFFFF' } },
+            alignment: { horizontal: 'center', vertical: 'center' },
+          }
+        }
       }
     })
 
-    doc.save(`planilla-${month}-${year}.pdf`)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Planilla')
+    XLSX.writeFile(wb, `planilla-${monthName}-${year}.xlsx`)
+
+    toast({
+      title: 'Éxito',
+      description: 'Planilla exportada a Excel correctamente',
+    })
   }
 
   const openDetailModal = (record: PayrollRecord) => {
     setSelectedPayroll(record)
     setDetailModalOpen(true)
-  }
-
-  const exportToExcel = () => {
-    const filteredRecords = payrollRecords.filter(
-      (r) => r.payroll_period_month === month && r.payroll_period_year === year
-    )
-
-    const data = filteredRecords.map((record) => {
-      const employee = employees.find((e) => e.id === record.employee_id)
-      return {
-        Empleado: `${employee?.first_name} ${employee?.last_name}`,
-        Cédula: employee?.cedula,
-        'Salario Base': record.gross_salary,
-        ISAPRES: record.isapres,
-        AFP: record.afp,
-        RENTA: record.renta,
-        'Otros Descuentos': record.other_deductions,
-        'Salario Neto': record.net_salary,
-        Estado: record.status,
-      }
-    })
-
-    const ws = XLSX.utils.json_to_sheet(data)
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, `Planilla ${month}/${year}`)
-
-    // Style headers
-    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
-    for (let C = range.s.c; C <= range.e.c; ++C) {
-      const address = XLSX.utils.encode_col(C) + '1'
-      if (!ws[address]) continue
-      ws[address].s = {
-        font: { bold: true },
-        fill: { fgColor: { rgb: 'FF3B82F6' } },
-        alignment: { horizontal: 'center' },
-      }
-    }
-
-    XLSX.writeFile(wb, `planilla-${month}-${year}.xlsx`)
   }
 
   return (
@@ -744,12 +1028,31 @@ export default function PayrollPage() {
               </div>
 
               <div>
-                <Label>Selecciona Empleados *</Label>
-                <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-300 rounded-md p-3">
+                <div className="flex justify-between items-center mb-3">
+                  <Label>Selecciona Empleados * ({selectedEmployees.length})</Label>
+                  <div className="text-xs space-x-2">
+                    <button
+                      onClick={() => setSelectedEmployees(employees.map(e => e.id))}
+                      className="px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition"
+                    >
+                      Seleccionar Todo
+                    </button>
+                    <button
+                      onClick={() => setSelectedEmployees([])}
+                      className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2 max-h-64 overflow-y-auto border border-gray-300 rounded-md p-3 bg-gray-50">
+                  {employees.length === 0 && (
+                    <p className="text-gray-500 text-sm text-center py-4">No hay empleados disponibles</p>
+                  )}
                   {employees.map((emp) => (
                     <label
                       key={emp.id}
-                      className="flex items-center gap-2 cursor-pointer"
+                      className="flex items-center gap-3 cursor-pointer p-2 rounded hover:bg-white transition"
                     >
                       <input
                         type="checkbox"
@@ -766,10 +1069,16 @@ export default function PayrollPage() {
                             )
                           }
                         }}
+                        className="w-4 h-4 rounded"
                       />
-                      <span>
-                        {emp.first_name} {emp.last_name} - ${emp.salary.toFixed(2)}
-                      </span>
+                      <div className="flex-1">
+                        <span className="font-medium text-gray-800">
+                          {emp.first_name} {emp.last_name}
+                        </span>
+                        <span className="text-xs text-gray-500 ml-2">
+                          ${emp.salary.toFixed(2)}
+                        </span>
+                      </div>
                     </label>
                   ))}
                 </div>
@@ -780,7 +1089,19 @@ export default function PayrollPage() {
                   <input
                     type="checkbox"
                     checked={enableQuincena25}
-                    onChange={(e) => setEnableQuincena25(e.target.checked)}
+                    onChange={(e) => {
+                      const checked = e.target.checked
+                      if (checked && !canGenerateQuincena25(month)) {
+                        toast({
+                          title: 'Período inválido para Quincena 25',
+                          description: `La Quincena 25 solo aplica para planillas del mes de enero. El período seleccionado es ${month}/${year}.`,
+                          variant: 'destructive',
+                        })
+                        setEnableQuincena25(false)
+                        return
+                      }
+                      setEnableQuincena25(checked)
+                    }}
                     className="w-4 h-4"
                   />
                   <div>
@@ -801,8 +1122,9 @@ export default function PayrollPage() {
                 <Button
                   className="bg-gradient-to-r from-blue-600 to-emerald-600"
                   onClick={handleGeneratePayroll}
+                  disabled={isGenerating}
                 >
-                  Generar Planilla
+                  {isGenerating ? 'Generando...' : 'Generar Planilla'}
                 </Button>
               </div>
             </div>
@@ -812,32 +1134,39 @@ export default function PayrollPage() {
 
       {/* Export Section */}
       {payrollRecords.length > 0 && (
-        <Card className="border-0 shadow-md bg-gradient-to-r from-blue-50 to-emerald-50">
-          <CardHeader>
-            <CardTitle className="text-base">Exportar Planilla</CardTitle>
-            <CardDescription>
-              Mes: {month} | Año: {year}
-            </CardDescription>
+        <Card className="border-0 shadow-md">
+          <CardHeader className="bg-gradient-to-r from-blue-600 to-emerald-600 text-white rounded-t-lg">
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="text-white">Exportar Planilla</CardTitle>
+                <CardDescription className="text-blue-100 mt-1">
+                  {payrollRecords.length} registro{payrollRecords.length !== 1 ? 's' : ''} disponible{payrollRecords.length !== 1 ? 's' : ''} 
+                  {' · '} 
+                  Mes {new Date(year, month - 1).toLocaleString('es-SV', { month: 'long' })} {year}
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="flex gap-3 flex-wrap">
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-2 gap-3">
               <Button
-                variant="outline"
                 onClick={exportToPDF}
-                className="flex items-center gap-2"
+                className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 justify-center"
               >
                 <Download size={18} />
-                Exportar a PDF
+                PDF
               </Button>
               <Button
-                variant="outline"
                 onClick={exportToExcel}
-                className="flex items-center gap-2"
+                className="bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 justify-center"
               >
                 <Download size={18} />
-                Exportar a Excel
+                Excel
               </Button>
             </div>
+            <p className="text-xs text-gray-500 mt-3 text-center">
+              Los costos patronales se incluyen en el resumen pero no en los detalles de empleado
+            </p>
           </CardContent>
         </Card>
       )}
@@ -964,7 +1293,7 @@ export default function PayrollPage() {
                           size="sm"
                           variant="outline"
                           className="text-red-600"
-                          onClick={() => handleDeletePayroll(record.id)}
+                          onClick={() => requestDeletePayroll(record.id)}
                         >
                           <Trash2 size={16} />
                         </Button>
@@ -994,6 +1323,32 @@ export default function PayrollPage() {
           isApproving={isApproving}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminar planilla</AlertDialogTitle>
+            <AlertDialogDescription>
+              ¿Estás seguro de que deseas eliminar este registro de planilla? Esta
+              acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                confirmDeletePayroll()
+              }}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? 'Eliminando...' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

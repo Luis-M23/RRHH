@@ -305,7 +305,7 @@ export default function EmployeesPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="cedula">Cédula *</Label>
+                  <Label htmlFor="cedula">DUI *</Label>
                   <Input
                     id="cedula"
                     placeholder="12345678-9"
@@ -504,7 +504,7 @@ export default function EmployeesPage() {
                   Nombre
                 </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                  Cédula
+                  DUI
                 </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">
                   Puesto
