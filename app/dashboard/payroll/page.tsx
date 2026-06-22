@@ -96,7 +96,6 @@ export default function PayrollPage() {
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([])
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [selectedPayroll, setSelectedPayroll] = useState<PayrollRecord | null>(null)
-  const [selectedEmployerCosts, setSelectedEmployerCosts] = useState<any>(null)
   const [isApproving, setIsApproving] = useState(false)
   const [enableQuincena25, setEnableQuincena25] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -120,15 +119,6 @@ export default function PayrollPage() {
           supabase.from('payroll_parameters').select('*'),
         ]
       )
-
-      console.log('[v0] fetchAllData results:', {
-        employeesCount: empResult.data?.length || 0,
-        employeesError: empResult.error,
-        payrollCount: payrollResult.data?.length || 0,
-        payrollError: payrollResult.error,
-        paramsCount: paramsResult.data?.length || 0,
-        paramsError: paramsResult.error
-      })
 
       setEmployees(empResult.data || [])
       setPayrollRecords(payrollResult.data || [])
@@ -619,29 +609,31 @@ export default function PayrollPage() {
     }
 
     const addHeader = (pageNum: number) => {
-      // Colored header bar - larger
+      // Colored header bar
       doc.setFillColor(31, 56, 100)
-      doc.rect(0, 0, pageWidth, 42, 'F')
+      doc.rect(0, 0, pageWidth, 40, 'F')
 
-      // Company name
+      // Company name - sized to avoid overlap with right-side metadata
       doc.setTextColor(255, 255, 255)
-      doc.setFontSize(18)
-      doc.setFont('helvetica', 'bold')
-      doc.text('Asociación Comunal Aguas del Tecomasuchi, C.A.', 15, 14)
-
-      // Document title - prominent
       doc.setFontSize(13)
       doc.setFont('helvetica', 'bold')
-      doc.text(`PLANILLA DE SALARIOS - ${monthName.toUpperCase()} ${year}`, 15, 26)
+      doc.text('Asociación Comunal Aguas del Tecomasuchi, C.A.', 15, 13)
 
-      // Right side info - clear and visible
-      doc.setFontSize(9)
+      // Document title
+      doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(255, 255, 255)
-      const rightCol = pageWidth - 50
-      doc.text(`Período: ${monthName} ${year}`, rightCol, 14)
-      doc.text(`Generado: ${now.toLocaleDateString('es-SV')}`, rightCol, 21)
-      doc.text(`Hora: ${now.toLocaleTimeString('es-SV')}`, rightCol, 28)
+      doc.text(`PLANILLA DE SALARIOS - ${monthName.toUpperCase()} ${year}`, 15, 22)
+
+      // Right side metadata - right-aligned, placed on its own line below to avoid overlap
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(220, 225, 235)
+      doc.text(
+        `Período: ${monthName} ${year}  |  Generado: ${now.toLocaleDateString('es-SV')}  |  Hora: ${now.toLocaleTimeString('es-SV')}`,
+        pageWidth - 15,
+        33,
+        { align: 'right' }
+      )
     }
 
     const addFooter = (pageNum: number, totalPages: number) => {
@@ -747,15 +739,16 @@ export default function PayrollPage() {
     const tableStartY = yPosition
     const totalTableWidth = columnWidths.reduce((a, b) => a + b, 0)
 
-    // Draw table header
+    // Draw table header - gray background with black text and borders
     doc.setFillColor(220, 220, 220)
+    doc.setDrawColor(180, 180, 180)
     doc.setTextColor(0, 0, 0)
     doc.setFontSize(7.5)
     doc.setFont('helvetica', 'bold')
 
     let currentX = tableStartX
     headers.forEach((header, i) => {
-      doc.rect(currentX, tableStartY, columnWidths[i], 7, 'F')
+      doc.rect(currentX, tableStartY, columnWidths[i], 7, 'FD')
       doc.text(header, currentX + columnWidths[i] / 2, tableStartY + 4.5, {
         align: 'center',
       })
@@ -779,22 +772,22 @@ export default function PayrollPage() {
         doc.addPage()
         addHeader(doc.internal.getNumberOfPages())
         
-        // Redraw table header on new page
-        doc.setFillColor(31, 56, 100)
-        doc.setTextColor(255, 255, 255)
-        doc.setFontSize(7)
+        // Redraw table header on new page - gray background with black text
+        doc.setFillColor(220, 220, 220)
+        doc.setDrawColor(180, 180, 180)
+        doc.setTextColor(0, 0, 0)
+        doc.setFontSize(7.5)
         doc.setFont('helvetica', 'bold')
         currentX = tableStartX
         headers.forEach((header, i) => {
-          doc.rect(currentX, 45, columnWidths[i], 6.5, 'F')
-          doc.text(header, currentX + 0.5, 49.2, {
-            maxWidth: columnWidths[i] - 1,
+          doc.rect(currentX, 46, columnWidths[i], 7, 'FD')
+          doc.text(header, currentX + columnWidths[i] / 2, 50.5, {
             align: 'center',
           })
           currentX += columnWidths[i]
         })
         
-        yPosition = 52
+        yPosition = 55
         doc.setTextColor(0, 0, 0)
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(7)
@@ -966,24 +959,8 @@ export default function PayrollPage() {
     })
   }
 
-  const openDetailModal = async (record: PayrollRecord) => {
+  const openDetailModal = (record: PayrollRecord) => {
     setSelectedPayroll(record)
-    console.log('[v0] Opening detail modal for payroll ID:', record.id)
-    
-    // Fetch employer costs for this payroll
-    const { data: costs, error } = await supabase
-      .from('employer_costs')
-      .select('*')
-      .eq('payroll_id', record.id)
-      .maybeSingle()
-    
-    console.log('[v0] Employer costs query result:', { costs, error })
-    
-    if (error) {
-      console.error('[v0] Error fetching employer costs:', error)
-    }
-    
-    setSelectedEmployerCosts(costs || null)
     setDetailModalOpen(true)
   }
 
@@ -1334,7 +1311,6 @@ export default function PayrollPage() {
           payrollData={selectedPayroll}
           onApprove={() => handleApprovePayroll(selectedPayroll.id)}
           isApproving={isApproving}
-          employerCosts={selectedEmployerCosts}
         />
       )}
     </div>

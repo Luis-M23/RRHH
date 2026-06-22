@@ -20,11 +20,6 @@ interface PayrollDetailModalProps {
   payrollData: any
   onApprove: () => void
   isApproving: boolean
-  employerCosts?: {
-    isss_employer: number
-    afp_employer: number
-    employer_total_cost: number
-  }
 }
 
 export function PayrollDetailModal({
@@ -35,7 +30,6 @@ export function PayrollDetailModal({
   payrollData,
   onApprove,
   isApproving,
-  employerCosts,
 }: PayrollDetailModalProps) {
   if (!payrollData) return null
 
@@ -53,6 +47,12 @@ export function PayrollDetailModal({
   // Note: net_salary now includes Quincena 25, so we need to account for it
   const totalDeductions = (isapres || 0) + (afp || 0) + (renta || 0) + (other_deductions || 0)
   const calculatedNetSalary = gross_salary - totalDeductions
+
+  // Employer costs (calculated directly from base salary - fixed percentages)
+  // These are NOT deducted from employee's net pay, they are paid by the employer
+  const isssEmployer = gross_salary * 0.075 // ISSS Patronal 7.5%
+  const afpEmployer = gross_salary * 0.0875 // AFP Patronal 8.75%
+  const employerTotalCost = gross_salary + isssEmployer + afpEmployer
   
   // Check if there's Quincena 25 included (net_salary > gross_salary - totalDeductions)
   const quincena25Included = net_salary > calculatedNetSalary
@@ -204,49 +204,55 @@ export function PayrollDetailModal({
           </Card>
 
           {/* Employer Costs Section (Internal Only - Not for PDF) */}
-          {employerCosts && (
-            <Card className="border-amber-200 bg-amber-50">
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Costos Patronales (Información Interna)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-xs text-amber-700 bg-amber-100 p-2 rounded mb-4">
-                  ℹ️ Esta sección es solo para registro interno y no aparece en el PDF de la planilla del empleado
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  {/* ISSS Employer */}
-                  <div className="p-3 border border-amber-200 rounded-lg bg-white">
-                    <p className="text-xs text-gray-600 mb-1">ISSS Empleador (7.5%)</p>
-                    <p className="text-lg font-bold text-amber-700">
-                      ${employerCosts.isss_employer.toFixed(2)}
-                    </p>
-                  </div>
+          <Card className="border-amber-200 bg-amber-50">
+            <CardHeader>
+              <CardTitle className="text-lg text-amber-900">
+                Costos Patronales (Información Interna)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-xs text-amber-800 bg-amber-100 p-2 rounded mb-4">
+                Esta sección es solo para registro interno. No aparece en el PDF de la planilla y no se resta del salario neto del empleado.
+              </div>
 
-                  {/* AFP Employer */}
-                  <div className="p-3 border border-amber-200 rounded-lg bg-white">
-                    <p className="text-xs text-gray-600 mb-1">AFP Empleador (8.75%)</p>
-                    <p className="text-lg font-bold text-amber-700">
-                      ${employerCosts.afp_employer.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Total Employer Cost */}
-                <div className="p-3 border-2 border-amber-400 rounded-lg bg-white">
-                  <p className="text-sm text-gray-600 mb-1">Costo Total Empleador</p>
-                  <p className="text-2xl font-bold text-amber-700">
-                    ${employerCosts.employer_total_cost.toFixed(2)}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-2">
-                    (Salario Base + Contribuciones del Empleador)
+              {/* ISSS Patronal */}
+              <div className="p-3 border border-amber-200 rounded-lg bg-white">
+                <div className="flex justify-between items-center mb-1">
+                  <p className="text-sm font-semibold text-gray-700">ISSS Patronal (7.5%)</p>
+                  <p className="text-lg font-bold text-amber-700">
+                    ${isssEmployer.toFixed(2)}
                   </p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Aporte a ISSS hecho por el empleador, equivale al 7.5% del salario mensual. Esta cantidad no se resta del monto que recibirá el empleado a final de mes.
+                </p>
+              </div>
+
+              {/* AFP Patronal */}
+              <div className="p-3 border border-amber-200 rounded-lg bg-white">
+                <div className="flex justify-between items-center mb-1">
+                  <p className="text-sm font-semibold text-gray-700">AFP Patronal (8.75%)</p>
+                  <p className="text-lg font-bold text-amber-700">
+                    ${afpEmployer.toFixed(2)}
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Aporte a AFP hecho por el empleador, equivale al 8.75% del salario mensual (Art. 16, Ley Integral del Sistema de Pensiones). Esta cantidad no se resta del monto que recibirá el empleado a final de mes.
+                </p>
+              </div>
+
+              {/* Total Employer Cost */}
+              <div className="p-3 border-2 border-amber-400 rounded-lg bg-white">
+                <p className="text-sm text-gray-600 mb-1">Costo Total Empleador</p>
+                <p className="text-2xl font-bold text-amber-700">
+                  ${employerTotalCost.toFixed(2)}
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  (Salario Base ${gross_salary.toFixed(2)} + ISSS Patronal + AFP Patronal)
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Status and Actions */}
           <div className="flex gap-2 justify-end">
